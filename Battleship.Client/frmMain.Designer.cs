@@ -1,6 +1,6 @@
 ﻿namespace Battleship.Client;
 
-partial class Form1
+partial class frmMain
 {
     /// <summary>
     ///  Required designer variable.
@@ -28,11 +28,30 @@ partial class Form1
     /// </summary>
     private void InitializeComponent()
     {
-        components = new System.ComponentModel.Container();
+        pnlContainer = new Panel();
+        SuspendLayout();
+        // 
+        // pnlContainer
+        // 
+        pnlContainer.Dock = DockStyle.Fill;
+        pnlContainer.Location = new Point(0, 0);
+        pnlContainer.Name = "pnlContainer";
+        pnlContainer.Size = new Size(978, 644);
+        pnlContainer.TabIndex = 0;
+        pnlContainer.Paint += pnlContainer_Paint;
+        // 
+        // frmMain
+        // 
+        AutoScaleDimensions = new SizeF(10F, 25F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(800, 450);
-        Text = "Form1";
+        ClientSize = new Size(978, 644);
+        Controls.Add(pnlContainer);
+        Name = "frmMain";
+        Text = "Battleship";
+        ResumeLayout(false);
     }
 
     #endregion
+
+    private Panel pnlContainer;
 }
