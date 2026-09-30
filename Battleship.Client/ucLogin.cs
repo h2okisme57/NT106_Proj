@@ -47,12 +47,14 @@ namespace Battleship.Client
                 lblErrorTxt.Text = "Đăng nhập thành công! Đang chuyển hướng...";
 
                 //code dan den lobby
+                frmMain mainForm = (frmMain)this.FindForm();
 
-                //frmMain mainForm = (frmMain)this.FindForm();
-                //if (mainForm != null)
-                //{
-                //    mainForm.SwitchView(new ucLobby());
-                //}
+                if (mainForm != null)
+                { 
+                    mainForm.SwitchView(new Lobby());
+                }
+
+               
 
 
             }
