@@ -71,6 +71,7 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = SystemColors.ActiveBorder;
             Controls.Add(lblFindStatus);
             Controls.Add(btnCancel);
             Controls.Add(lblFindtxt);

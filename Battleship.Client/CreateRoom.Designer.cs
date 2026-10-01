@@ -44,6 +44,7 @@
             btnCancel.TabIndex = 8;
             btnCancel.Text = "Cancel";
             btnCancel.UseVisualStyleBackColor = true;
+            btnCancel.Click += btnCancel_Click_1;
             // 
             // lblWait
             // 
@@ -80,6 +81,7 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = SystemColors.ActiveBorder;
             Controls.Add(btnCancel);
             Controls.Add(lblWait);
             Controls.Add(lblID);

@@ -17,10 +17,40 @@ namespace Battleship.Client
         private ProfileControl myProfileControl;
         private CreateRoom createRoomPanel;
         private JoinRoom joinRoomPanel;
+        //vo hieu cac button khi dang hien thi access
+
+        private bool isPopupOpen = false;
         public Lobby()
         {
             InitializeComponent();
         }
+
+        public void ShowPopup(UserControl popup)
+        {
+            if (popup == null) return;
+
+            isPopupOpen = true; // Bật cờ khóa
+
+            popup.Visible = true;
+            popup.BringToFront();
+        }
+
+        public void HidePopup(UserControl popup)
+        {
+            if (popup != null) popup.Visible = false;
+
+            isPopupOpen = false; // Tắt cờ khóa
+        }
+
+        private string GenerateRoomId()
+        {
+            Random rand = new Random();
+            return rand.Next(1000, 9999).ToString();
+        }
+
+
+
+        //-------Ham xu ly su kien khi nhan loi moi choi tu ban be
         public void ReceiveChallenge(string challengerName)
         {
             if (this.InvokeRequired)
@@ -38,20 +68,19 @@ namespace Battleship.Client
 
                 // Căn giữa màn hình
                 inviteAlert.Location = new Point(
-                    (this.ClientSize.Width - inviteAlert.Width) / 2,
-                    (this.ClientSize.Height - inviteAlert.Height) / 2
+                    (ClientSize.Width - inviteAlert.Width) / 2,
+                    (ClientSize.Height - inviteAlert.Height) / 2
                 );
 
-                this.Controls.Add(inviteAlert);
+                Controls.Add(inviteAlert);
             }
+            inviteAlert.ChallengerName = challengerName;
+            ShowPopup(inviteAlert);
         }
 
-        private string GenerateRoomId()
-        {
-            Random rand = new Random();
-            return rand.Next(1000, 9999).ToString();
-        }
+        
 
+       
         private void FriendFightInv_AcceptClicked(object sender, EventArgs e)
         {
             inviteAlert.Visible = false;
@@ -68,6 +97,9 @@ namespace Battleship.Client
             string challenger = inviteAlert.ChallengerName;
             // Gửi thông tin từ chối lời mời đến server
         }
+
+
+        //-------Ham cac nut
         private void button1_Click(object sender, EventArgs e)
         {
 
@@ -80,19 +112,31 @@ namespace Battleship.Client
 
         private void btnProfile_Click(object sender, EventArgs e)
         {
+            if (isPopupOpen) return;
             if (myProfileControl == null)
             {
                 myProfileControl = new ProfileControl();
                 int x = (ClientSize.Width - myProfileControl.Width) / 2;
                 int y = (ClientSize.Height - myProfileControl.Height) / 2;
                 myProfileControl.Location = new Point(x, y);
+                Controls.Add(myProfileControl);
+                myProfileControl.CancelClicked += MyProfileControl_CancelClicked;
             }
             myProfileControl.Visible = true;
             myProfileControl.BringToFront();
+
+            ShowPopup(myProfileControl);
+        }
+
+        private void MyProfileControl_CancelClicked(object? sender, EventArgs e)
+        {
+            myProfileControl.Visible = false;
+            HidePopup(myProfileControl);
         }
 
         private void btnPlay_Click(object sender, EventArgs e)
         {
+            if (isPopupOpen) return;
             if (findingRoomPanel == null)
             {
                 findingRoomPanel = new FindRandomRoom();
@@ -111,8 +155,7 @@ namespace Battleship.Client
             }
 
             // Hiện bảng lên và đưa lên lớp trên cùng (đè các nút khác)
-            findingRoomPanel.Visible = true;
-            findingRoomPanel.BringToFront();
+            ShowPopup(findingRoomPanel);
 
             // --------------------------------------------------------
             // TẠI ĐÂY: Thêm code gửi Socket TCP tới Server yêu cầu tìm trận
@@ -122,6 +165,7 @@ namespace Battleship.Client
         private void FindingRoomPanel_CancelClicked(object sender, EventArgs e)
         {
             findingRoomPanel.Visible = false;
+            HidePopup(findingRoomPanel);
 
             // --------------------------------------------------------
             // TẠI ĐÂY: Thêm code gửi Socket TCP tới Server báo hủy tìm trận
@@ -132,8 +176,8 @@ namespace Battleship.Client
 
         private void btnMakeRoom_Click(object sender, EventArgs e)
         {
+            if (isPopupOpen) return;
             string newRoomId = GenerateRoomId();
-            createRoomPanel.Visible = false;
             if (createRoomPanel == null)
             {
                 createRoomPanel = new CreateRoom();
@@ -143,28 +187,29 @@ namespace Battleship.Client
                 this.Controls.Add(createRoomPanel);
             }
             createRoomPanel.SetRoomId(newRoomId);
-            createRoomPanel.Visible = true;
-            createRoomPanel.BringToFront();
+            ShowPopup(createRoomPanel);
+
             // (TẠI ĐÂY) Gửi gói tin TCP báo cho Server biết bạn vừa tạo phòng ID này
         }
 
         private void createRoomPanel_CancelClicked(object sender, EventArgs e)
         {
             createRoomPanel.Visible = false;
-
+            HidePopup(createRoomPanel);
 
             // (TẠI ĐÂY) Gửi TCP báo Server xóa phòng này
         }
 
         private void btnJoinRoom_Click(object sender, EventArgs e)
         {
+            if (isPopupOpen) return;
             if (joinRoomPanel == null)
             {
                 joinRoomPanel = new JoinRoom();
 
                 // Đăng ký sự kiện: Nhận ID và Hủy
                 joinRoomPanel.JoinClicked += JoinRoomPanel_JoinClicked;
-                joinRoomPanel.CancelClicked += (s, ev) => joinRoomPanel.Visible = false; // Ẩn bảng khi bấm Hủy
+                joinRoomPanel.CancelClicked += joinRoomPanel_CancelClicked; // Ẩn bảng khi bấm Hủy
 
                 // Căn giữa màn hình sảnh
                 joinRoomPanel.Location = new Point(
@@ -176,9 +221,10 @@ namespace Battleship.Client
             }
 
             // Hiện bảng lên lớp trên cùng
-            joinRoomPanel.Visible = true;
-            joinRoomPanel.BringToFront();
+            ShowPopup(joinRoomPanel);
         }
+
+
         private void JoinRoomPanel_JoinClicked(object sender, EventArgs e)
         {
             string targetRoomId = joinRoomPanel.RoomId;
@@ -186,11 +232,16 @@ namespace Battleship.Client
 
             joinRoomPanel.Visible = false;
 
-            MessageBox.Show($"Đang xin vào phòng có ID: {targetRoomId}...", "Hệ thống");
 
             // --------------------------------------------------------
             // TẠI ĐÂY: Thêm code gửi gói tin Socket TCP lên Server
             // --------------------------------------------------------
+        }
+
+         private void joinRoomPanel_CancelClicked(object sender, EventArgs e)
+        {
+            joinRoomPanel.Visible = false;
+            HidePopup(joinRoomPanel);
         }
 
         private void btnQuit_Click(object sender, EventArgs e)

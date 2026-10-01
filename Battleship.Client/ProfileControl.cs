@@ -12,6 +12,7 @@ namespace Battleship.Client
 {
     public partial class ProfileControl : UserControl
     {
+        public event EventHandler CancelClicked;
         public ProfileControl()
         {
             InitializeComponent();
@@ -106,6 +107,7 @@ namespace Battleship.Client
         private void button1_Click(object sender, EventArgs e)
         {
             Visible = false;
+            CancelClicked?.Invoke(this, EventArgs.Empty);
         }
     }
     }

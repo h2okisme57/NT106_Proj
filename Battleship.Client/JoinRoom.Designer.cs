@@ -84,6 +84,7 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = SystemColors.ActiveBorder;
             Controls.Add(btnJoin);
             Controls.Add(btnCancel);
             Controls.Add(boxJoinEnter);
