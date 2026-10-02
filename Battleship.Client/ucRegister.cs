@@ -1,61 +1,187 @@
-﻿using Microsoft.VisualBasic.ApplicationServices;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
+﻿using System;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace Battleship.Client
 {
     public partial class ucRegister : UserControl
     {
+        // 1. GỌI HÀM LÕI WINDOWS ĐỂ TẠO THỤT LỀ (PADDING)
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
+        private const int EM_SETMARGINS = 0xd3;
+        private const int EC_LEFTMARGIN = 1;
+
         public ucRegister()
         {
             InitializeComponent();
+
+            // Gắn sự kiện Load trực tiếp trong constructor
+            this.Load += ucRegister_Load;
+        }
+
+        private void ucRegister_Load(object sender, EventArgs e)
+        {
+            this.ActiveControl = null;
+            this.Click += Background_Click;
+
+            // 2. THỤT LỀ TRÁI 10 PIXEL CHO CẢ 3 Ô
+            SendMessage(boxUsernameTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
+            SendMessage(boxPasswordTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
+            SendMessage(boxConfirmPassword.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
+
+            // 3. CÀI ĐẶT PLACEHOLDER BAN ĐẦU
+            boxUsernameTxt.Text = "Tên đăng nhập";
+            boxUsernameTxt.ForeColor = Color.Gray;
+
+            boxPasswordTxt.PasswordChar = '\0';
+            boxPasswordTxt.Text = "Mật khẩu";
+            boxPasswordTxt.ForeColor = Color.Gray;
+
+            boxConfirmPassword.PasswordChar = '\0';
+            boxConfirmPassword.Text = "Xác nhận mật khẩu";
+            boxConfirmPassword.ForeColor = Color.Gray;
+
+            // Móc nối các sự kiện Enter/Leave
+            boxUsernameTxt.Enter += boxUsernameTxt_Enter;
+            boxUsernameTxt.Leave += boxUsernameTxt_Leave;
+
+            boxPasswordTxt.Enter += boxPasswordTxt_Enter;
+            boxPasswordTxt.Leave += boxPasswordTxt_Leave;
+
+            boxConfirmPassword.Enter += boxConfirmPassword_Enter;
+            boxConfirmPassword.Leave += boxConfirmPassword_Leave;
+        }
+
+        private void Background_Click(object sender, EventArgs e)
+        {
+            // Ép mặt nền (UserControl) giật lại sự chú ý. 
+            // Các TextBox sẽ ngay lập tức bị buộc phải nhả con trỏ chuột ra.
+            this.Focus();
+        }
+
+        // ================= XỬ LÝ USERNAME =================
+        private void boxUsernameTxt_Enter(object sender, EventArgs e)
+        {
+            if (boxUsernameTxt.Text == "Tên đăng nhập")
+            {
+                boxUsernameTxt.Text = "";
+                boxUsernameTxt.ForeColor = Color.Black;
+            }
+        }
+
+        private void boxUsernameTxt_Leave(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(boxUsernameTxt.Text))
+            {
+                boxUsernameTxt.Text = "Tên đăng nhập";
+                boxUsernameTxt.ForeColor = Color.Gray;
+            }
+        }
+
+        // ================= XỬ LÝ PASSWORD =================
+        private void boxPasswordTxt_Enter(object sender, EventArgs e)
+        {
+            if (boxPasswordTxt.Text == "Mật khẩu")
+            {
+                boxPasswordTxt.Text = "";
+                boxPasswordTxt.ForeColor = Color.Black;
+                boxPasswordTxt.PasswordChar = '●';
+            }
+        }
+
+        private void boxPasswordTxt_Leave(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(boxPasswordTxt.Text))
+            {
+                boxPasswordTxt.PasswordChar = '\0';
+                boxPasswordTxt.Text = "Mật khẩu";
+                boxPasswordTxt.ForeColor = Color.Gray;
+            }
+        }
+
+        // ================= XỬ LÝ CONFIRM PASSWORD =================
+        private void boxConfirmPassword_Enter(object sender, EventArgs e)
+        {
+            if (boxConfirmPassword.Text == "Xác nhận mật khẩu")
+            {
+                boxConfirmPassword.Text = "";
+                boxConfirmPassword.ForeColor = Color.Black;
+                boxConfirmPassword.PasswordChar = '●';
+            }
+        }
+
+        private void boxConfirmPassword_Leave(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(boxConfirmPassword.Text))
+            {
+                boxConfirmPassword.PasswordChar = '\0';
+                boxConfirmPassword.Text = "Xác nhận mật khẩu";
+                boxConfirmPassword.ForeColor = Color.Gray;
+            }
+        }
+
+        // ================= XỬ LÝ NÚT BẤM & ĐIỀU HƯỚNG =================
+        private async void btnRegister_Click(object sender, EventArgs e)
+        {
+            string user = boxUsernameTxt.Text.Trim();
+            string pass = boxPasswordTxt.Text.Trim();
+            string confirm = boxConfirmPassword.Text.Trim();
+
+            // Kiểm tra rỗng hoặc chưa nhập (đang là chữ gợi ý)
+            if (string.IsNullOrWhiteSpace(user) || user == "Tên đăng nhập" ||
+                string.IsNullOrWhiteSpace(pass) || pass == "Mật khẩu" ||
+                string.IsNullOrWhiteSpace(confirm) || confirm == "Xác nhận mật khẩu")
+            {
+                lblErrorTxt.ForeColor = Color.Red;
+                lblErrorTxt.Text = "Vui lòng nhập đầy đủ thông tin!";
+                return;
+            }
+
+            // Kiểm tra mật khẩu khớp nhau
+            if (pass != confirm)
+            {
+                lblErrorTxt.ForeColor = Color.Red;
+                lblErrorTxt.Text = "Mật khẩu xác nhận không khớp!";
+                return;
+            }
+
+            // Chỗ này sau này bạn sẽ nối với Database/Server. 
+            // Tạm thời giả lập đăng ký thành công:
+            lblErrorTxt.ForeColor = Color.Green;
+            lblErrorTxt.Text = "Đăng ký thành công! Đang quay lại Đăng nhập...";
+
+            await Task.Delay(800); // Dừng một lát để người dùng đọc thông báo
+
+            SwitchToLogin();
         }
 
         private void llblLogin_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            frmMain mainForm = (frmMain)FindForm();
-            if (mainForm != null)
-            {
-                mainForm.SwitchView(new ucLogin());
-            }
+            // Bấm chữ "Đã có tài khoản? Đăng nhập" thì quay về màn hình Login
+            SwitchToLogin();
         }
 
-        private async void btnRegister_Click(object sender, EventArgs e)
+        // Hàm hỗ trợ đổi ruột Popup từ ucRegister sang ucLogin
+        private void SwitchToLogin()
         {
-            string user = boxUsername.Text.Trim();
-            string pass = boxPassword.Text.Trim();
-            string confirmPass = boxPasswordCofirm.Text.Trim();
-            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass) || string.IsNullOrEmpty(confirmPass))
+            Form popup = this.FindForm();
+            if (popup != null)
             {
-                lblErrorTxt.Text = "Vui lòng nhập đầy đủ thông tin!";
-                return;
+                popup.Controls.Clear();
+                ucLogin loginScreen = new ucLogin();
+
+                popup.Controls.Add(loginScreen);
+                popup.ClientSize = loginScreen.Size; // Tự động co giãn Form vừa với ucLogin
             }
-            if (pass != confirmPass)
-            {
-                lblErrorTxt.Text = "Mật khẩu xác nhận không khớp!";
-                boxPasswordCofirm.Clear();
-                boxPasswordCofirm.Focus();
-                return;
-            }
-            lblErrorTxt.ForeColor = Color.Green;
-            lblErrorTxt.Text = "Đăng ký thành công! Đang chuyển hướng...";
-            
-            btnRegister.Enabled = false;
-            await Task.Delay(2000);
-            btnRegister.Enabled = true;
-            llblLogin_LinkClicked(sender, null);
         }
 
-        private void boxPassword_TextChanged(object sender, EventArgs e)
-        {
-
-        }
+        // Các sự kiện TextChanged rỗng (WinForms tự sinh ra, cứ để nguyên hoặc xóa nếu không dùng)
+        private void boxUsernameTxt_TextChanged(object sender, EventArgs e) { }
+        private void boxPasswordTxt_TextChanged(object sender, EventArgs e) { }
+        private void boxConfirmPassword_TextChanged(object sender, EventArgs e) { }
+        private void lblErrorTxt_Click(object sender, EventArgs e) { }
     }
 }

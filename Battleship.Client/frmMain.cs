@@ -20,7 +20,7 @@ public partial class frmMain : Form
     // Khi Form Main vừa mở lên, tự động hiển thị màn hình Login
     private void frmMain_Load(object sender, EventArgs e)
     {
-        SwitchView(new ucLogin());
+        SwitchView(new Lobby());
     }
 
     private void pnlContainer_Paint(object sender, PaintEventArgs e)
