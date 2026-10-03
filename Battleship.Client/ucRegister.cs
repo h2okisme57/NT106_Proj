@@ -24,15 +24,13 @@ namespace Battleship.Client
 
         private void ucRegister_Load(object sender, EventArgs e)
         {
-            this.ActiveControl = null;
-            this.Click += Background_Click;
 
-            // 2. THỤT LỀ TRÁI 10 PIXEL CHO CẢ 3 Ô
+            // 2. THỤT LỀ TRÁI  CHO CẢ 3 Ô
             SendMessage(boxUsernameTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
             SendMessage(boxPasswordTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
             SendMessage(boxConfirmPassword.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
 
-            // 3. CÀI ĐẶT PLACEHOLDER BAN ĐẦU
+            // CÀI ĐẶT PLACEHOLDER BAN ĐẦU
             boxUsernameTxt.Text = "Tên đăng nhập";
             boxUsernameTxt.ForeColor = Color.Gray;
 
@@ -53,14 +51,45 @@ namespace Battleship.Client
 
             boxConfirmPassword.Enter += boxConfirmPassword_Enter;
             boxConfirmPassword.Leave += boxConfirmPassword_Leave;
+
+            this.Click += LoseFocus_Click;
+
+            // Dùng hàm đệ quy để quét sạch mọi tầng lớp giao diện bên trong
+            AttachClickToAllControls(this);
         }
 
-        private void Background_Click(object sender, EventArgs e)
+        private void AttachClickToAllControls(Control container)
         {
-            // Ép mặt nền (UserControl) giật lại sự chú ý. 
-            // Các TextBox sẽ ngay lập tức bị buộc phải nhả con trỏ chuột ra.
-            this.Focus();
+            foreach (Control ctrl in container.Controls)
+            {
+                // Gắn sự kiện nhả Focus cho tất cả mọi thứ TRỪ TextBox
+                if (!(ctrl is TextBox))
+                {
+                    ctrl.Click += LoseFocus_Click;
+                }
+
+                // hàm sẽ tự động gọi lại chính nó để đào sâu vào tận lớp trong cùng.
+                if (ctrl.HasChildren)
+                {
+                    AttachClickToAllControls(ctrl);
+                }
+            }
         }
+
+        // === HÀM ÉP NHẢ FOCUS TỪ TẬN GỐC ===
+        private void LoseFocus_Click(object sender, EventArgs e)
+        {
+            // Tìm Form gốc đang chứa ucLogin này
+            Form parentForm = this.FindForm();
+
+            if (parentForm != null)
+            {
+                // Tước quyền Focus từ cấp độ Form cha, TextBox sẽ bắt buộc phải nhả con trỏ chuột
+                parentForm.ActiveControl = null;
+            }
+        }
+
+
 
         // ================= XỬ LÝ USERNAME =================
         private void boxUsernameTxt_Enter(object sender, EventArgs e)
@@ -178,7 +207,9 @@ namespace Battleship.Client
             }
         }
 
-        // Các sự kiện TextChanged rỗng (WinForms tự sinh ra, cứ để nguyên hoặc xóa nếu không dùng)
+
+
+        // Các sự kiện thừa
         private void boxUsernameTxt_TextChanged(object sender, EventArgs e) { }
         private void boxPasswordTxt_TextChanged(object sender, EventArgs e) { }
         private void boxConfirmPassword_TextChanged(object sender, EventArgs e) { }

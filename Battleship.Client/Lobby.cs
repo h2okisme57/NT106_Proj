@@ -38,10 +38,10 @@ namespace Battleship.Client
                 lblBattleshiptxt.ForeColor = textColorLogo;
             }
 
-            // Quét toàn bộ các công cụ nằm trên Lobby
+            // Tạo các nút bấm với font chữ, màu sắc và hiệu ứng hover
             foreach (Control ctrl in this.Controls)
             {
-                // Nếu công cụ đó là Nút bấm (Button)
+                
                 if (ctrl is Button btn)
                 {
                     btn.UseCompatibleTextRendering = true;
@@ -97,7 +97,7 @@ namespace Battleship.Client
             }
         }
 
-        // === GẮN CHỐT CHẶN VÀO CÁC NÚT BẤM ===
+        // === CÁC NÚT BẤM ===
         private void btnFindRoom_Click(object sender, EventArgs e)
         {
             

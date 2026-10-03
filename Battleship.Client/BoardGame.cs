@@ -38,7 +38,7 @@ namespace Battleship.Client
                 tableGame.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
                 tableGame.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F));
             }
-
+            //Biến tải nền nước
             Image waterTile = Properties.Resources.OceanBox;
 
             for (int row = 0; row < 10; row++)
@@ -90,7 +90,7 @@ namespace Battleship.Client
 
                 int alpha = 80 - (i * 40);
 
-                // Dùng màu Trắng mờ (hoặc thay bằng màu Xanh nhạt) để tạo cảm giác phát sáng/nhòe
+                // Dùng màu Trắng mờ để tạo cảm giác phát sáng/nhòe
                 using (Pen pen = new Pen(Color.FromArgb(alpha, 0,0,0), 1))
                 {
                     Rectangle rect = new Rectangle(
