@@ -21,7 +21,23 @@ public class TcpServer
     public TcpServer(int port)
     {
         _listener = new TcpListener(IPAddress.Any, port);
-        _router = new PacketRouter(_roomManager, _sessions);
+        _router = new PacketRouter(_sessions);
+        RegisterHandlers();
+    }
+
+    // ===== ĐĂNG KÝ HANDLER: mỗi người THÊM 1 DÒNG cho mảng của mình, không sửa chỗ khác =====
+    private void RegisterHandlers()
+    {
+        _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
+
+        // TODO (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
+        //   _router.Register(PacketType.LoginRequest,    new AuthHandler(_router));
+        //   _router.Register(PacketType.RegisterRequest, new AuthHandler(_router));
+
+        // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick (dùng _roomManager)
+        //   var roomHandler = new RoomHandler(_roomManager, _router);
+        //   _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        //   _router.Register(PacketType.JoinRoomRequest,   roomHandler);
     }
 
     public async Task StartAsync()
