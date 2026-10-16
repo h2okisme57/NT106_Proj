@@ -64,6 +64,14 @@ public class LoginResponseDto
     public string Username { get; set; } = string.Empty;
 }
 
+public class AuthResponse
+{
+    // Báo cho Client biết thao tác thành công hay thất bại
+    public bool IsSuccess { get; set; }
+    // Trả về tên user nếu đăng nhập thành công để Lobby hiển thị
+    public string Username { get; set; }
+}
+
 public class FireShotDto
 {
     public int X { get; set; }

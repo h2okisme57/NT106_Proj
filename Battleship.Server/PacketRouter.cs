@@ -1,7 +1,13 @@
+using Battleship.Client.Models;
+using Battleship.Server.Helpers;
+using Battleship.Server.Models;
+using Battleship.Shared;
 using System;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Battleship.Shared;
+using System.Linq;
+
 
 namespace Battleship.Server;
 
@@ -29,11 +35,75 @@ public class PacketRouter
             {
                 // ----- Tài khoản (phần của Dũng - 3.2) -----
                 case PacketType.LoginRequest:
+                    {
+                        var req = JsonSerializer.Deserialize<LoginRequestDto>(packet.Payload);
+
+                        using (var db = new AppDbContext())
+                        {
+                            var user = db.Users.FirstOrDefault(u => u.Username == req.Username);
+
+                            if (user != null && PasswordHelper.VerifyPassword(req.Password, user.Password))
+                            {
+                                session.UserId = user.Id;
+                                session.Username = user.Username;
+                                session.IsLoggedIn = true;
+
+                                var res = new AuthResponse { IsSuccess = true, Username = user.Username };
+                                // Đóng gói thành new Packet trước khi gửi
+                                await session.SendAsync(new Packet
+                                {
+                                    Type = PacketType.LoginResponse,
+                                    Payload = JsonSerializer.Serialize(res)
+                                });
+                            }
+                            else
+                            {
+                                var res = new AuthResponse { IsSuccess = false, Username = user.Username };
+                                await session.SendAsync(new Packet
+                                {
+                                    Type = PacketType.LoginResponse,
+                                    Payload = JsonSerializer.Serialize(res)
+                                });
+                            }
+                        }
+                        break;
+                    }
+
                 case PacketType.RegisterRequest:
-                    // TODO (Dũng): đọc LoginRequestDto, xác thực bằng PasswordHelper + AppDbContext,
-                    // gán session.Username, rồi session.SendAsync(LoginResponse/RegisterResponse).
-                    await ReplyNotImplemented(session, packet.Type);
-                    break;
+                    {
+                        var req = JsonSerializer.Deserialize<LoginRequestDto>(packet.Payload);
+
+                        using (var db = new AppDbContext())
+                        {
+                            if (db.Users.Any(u => u.Username == req.Username))
+                            {
+                                var res = new AuthResponse { IsSuccess = false };
+                                
+                                await session.SendAsync(new Packet
+                                {
+                                    Type = PacketType.RegisterResponse,
+                                    Payload = JsonSerializer.Serialize(res)
+                                });
+                            }
+                            else
+                            {
+                                string hash = PasswordHelper.HashPassword(req.Password);
+                                var newUser = new User { Username = req.Username, Password = hash };
+
+                                db.Users.Add(newUser);
+                                await db.SaveChangesAsync();
+
+                                var res = new AuthResponse { IsSuccess = true };
+                                
+                                await session.SendAsync(new Packet
+                                {
+                                    Type = PacketType.RegisterResponse,
+                                    Payload = JsonSerializer.Serialize(res)
+                                });
+                            }
+                        }
+                        break;
+                    }
 
                 // ----- Phòng đấu (phần của Đức - 3.4) -----
                 case PacketType.CreateRoomRequest:

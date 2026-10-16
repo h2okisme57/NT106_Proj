@@ -16,6 +16,8 @@ public class ClientSession : IDisposable
 
     // Tên đăng nhập, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
     public string? Username { get; set; }
+    public int UserId { get; set; }
+    public bool IsLoggedIn { get; set; } = false;
 
     // Delegate báo cho Server biết Client này đã ngắt kết nối
     public event Action<ClientSession>? OnDisconnected;
