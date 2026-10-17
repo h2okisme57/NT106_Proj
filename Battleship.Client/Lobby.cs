@@ -16,6 +16,7 @@ namespace Battleship.Client
     {
         // Biến cờ để đánh dấu trạng thái đăng nhập
         private bool isLoggedIn = false;
+        private joinRoom pnlJoinRoom;
         public Lobby()
         {
             InitializeComponent();
@@ -208,6 +209,27 @@ namespace Battleship.Client
         {
             if (!CheckLogin()) return;
             // Code tham gia phòng
+
+            if (pnlJoinRoom != null && this.Controls.Contains(pnlJoinRoom))
+            {
+                pnlJoinRoom.BringToFront();
+                return;
+            }
+
+            // 2. Khởi tạo UserControl joinRoom
+            pnlJoinRoom = new joinRoom();
+
+            // 3. TÍNH TOÁN CĂN GIỮA MÀN HÌNH LOBBY
+            int centerX = (this.Width - pnlJoinRoom.Width) / 2;
+            int centerY = (this.Height - pnlJoinRoom.Height) / 2;
+            pnlJoinRoom.Location = new Point(centerX, centerY);
+
+            // 4. Gắn thêm viền (tùy chọn) để bảng nổi bật lên khỏi nền Lobby
+            pnlJoinRoom.BorderStyle = BorderStyle.FixedSingle;
+
+            // 5. Đưa bảng vào Lobby và ép hiển thị trên cùng (che khuất các thành phần khác)
+            this.Controls.Add(pnlJoinRoom);
+            pnlJoinRoom.BringToFront();
         }
 
         private void btnProfile_Click(object sender, EventArgs e)
