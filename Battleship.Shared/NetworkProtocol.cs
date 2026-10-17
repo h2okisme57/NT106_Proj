@@ -72,6 +72,7 @@ public class AuthResponse
     public string Username { get; set; }
 }
 
+
 public class FireShotDto
 {
     public int X { get; set; }

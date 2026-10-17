@@ -104,6 +104,7 @@ public class PacketRouter
                         }
                         break;
                     }
+                
 
                 // ----- Phòng đấu (phần của Đức - 3.4) -----
                 case PacketType.CreateRoomRequest:
@@ -123,8 +124,25 @@ public class PacketRouter
 
                 // ----- Chat sảnh: Router xử lý trực tiếp bằng broadcast -----
                 case PacketType.ChatMessage:
-                    await BroadcastAsync(packet);
-                    break;
+                    {
+                        var chatReq = JsonSerializer.Deserialize<ChatMessageDto>(packet.Payload);
+
+                        // 1. Gắn tên thật (Chống giả mạo tên)
+                        chatReq.Sender = session.Username ?? "Unknown";
+
+                        // 2. CHỐT GIỜ CHUẨN CỦA SERVER (Chống sai lệch đồng hồ Client)
+                        chatReq.Timestamp = DateTime.Now;
+
+                        // 3. Đóng gói và phát sóng
+                        Packet broadcastPacket = new Packet
+                        {
+                            Type = PacketType.ChatMessage,
+                            Payload = JsonSerializer.Serialize(chatReq)
+                        };
+
+                        await BroadcastAsync(broadcastPacket);
+                        break;
+                    }
 
                 default:
                     Console.WriteLine($"[Router] Chưa định tuyến cho PacketType: {packet.Type} (từ {session.SessionId})");
