@@ -17,6 +17,7 @@ namespace Battleship.Client
         // Biến cờ để đánh dấu trạng thái đăng nhập
         private bool isLoggedIn = false;
         private joinRoom pnlJoinRoom;
+        private Profile pnlProfile;
         public Lobby()
         {
             InitializeComponent();
@@ -93,6 +94,16 @@ namespace Battleship.Client
         }
 
         private FlowLayoutPanel chatPanel;
+
+        private void DeleteAccess()
+        {
+            if (pnlJoinRoom != null && this.Controls.Contains(pnlJoinRoom))
+            {
+                this.Controls.Remove(pnlJoinRoom);
+                pnlJoinRoom.Dispose();
+                pnlJoinRoom = null;
+            }
+        }
 
         private void CreateTransparentChatBox()
         {
@@ -194,20 +205,21 @@ namespace Battleship.Client
         {
 
             if (!CheckLogin()) return;
-
+            DeleteAccess();
             // Code tìm phòng của bạn sẽ viết ở đây (chỉ chạy khi đã login)
         }
 
         private void btnCreateRoom_Click(object sender, EventArgs e)
         {
             if (!CheckLogin()) return;
-
+            DeleteAccess();
             // Code tạo phòng
         }
 
         private void btnJoinRoom_Click(object sender, EventArgs e)
         {
             if (!CheckLogin()) return;
+            DeleteAccess();
             // Code tham gia phòng
 
             if (pnlJoinRoom != null && this.Controls.Contains(pnlJoinRoom))
@@ -235,13 +247,28 @@ namespace Battleship.Client
         private void btnProfile_Click(object sender, EventArgs e)
         {
             if (!CheckLogin()) return;
-
+            DeleteAccess(); 
             // Code mở hồ sơ
+
+            pnlProfile = new Profile();
+
+            // 3. TÍNH TOÁN CĂN GIỮA MÀN HÌNH LOBBY
+            int centerX = (this.Width - pnlProfile.Width) / 2;
+            int centerY = (this.Height - pnlProfile.Height) / 2;
+            pnlProfile.Location = new Point(centerX, centerY);
+
+            // 4. Gắn thêm viền (tùy chọn) để bảng nổi bật lên khỏi nền Lobby
+            pnlProfile.BorderStyle = BorderStyle.FixedSingle;
+
+            // 5. Đưa bảng vào Lobby và ép hiển thị trên cùng (che khuất các thành phần khác)
+            this.Controls.Add(pnlProfile);
+            pnlProfile.BringToFront();
         }
 
         private void btnQuit_Click(object sender, EventArgs e)
         {
             Application.Exit();
+
         }
 
         private void lblBattleshiptxt_Click(object sender, EventArgs e)

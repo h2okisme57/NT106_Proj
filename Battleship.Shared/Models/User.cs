@@ -8,7 +8,8 @@ namespace Battleship.Client.Models
 {
     internal class User
     {
-        public int Id { get; set; }
+        public string Id { get; set; }
+        public bool Condition { get; set; } = false;
         public string Username { get; set; }
         public string Password { get; set; }
         public int Wins { get; set; } = 0;
