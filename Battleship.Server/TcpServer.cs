@@ -16,12 +16,14 @@ public class TcpServer
     private readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
     private readonly RoomManager _roomManager = new();   // phần của Đức (đã có sẵn)
     private readonly PacketRouter _router;
+    private readonly MatchmakingQueue _matchmaking;   // Hoàng - hàng đợi tìm trận
     private readonly CancellationTokenSource _cts = new();
 
     public TcpServer(int port)
     {
         _listener = new TcpListener(IPAddress.Any, port);
         _router = new PacketRouter(_sessions);
+        _matchmaking = new MatchmakingQueue(_roomManager);
         RegisterHandlers();
     }
 
@@ -29,6 +31,11 @@ public class TcpServer
     private void RegisterHandlers()
     {
         _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
+
+        // Hoàng - tìm trận / hủy tìm trận
+        var matchmakingHandler = new MatchmakingHandler(_matchmaking);
+        _router.Register(PacketType.MatchmakingJoinRequest, matchmakingHandler);
+        _router.Register(PacketType.MatchmakingCancelRequest, matchmakingHandler);
 
         // TODO (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
         //   _router.Register(PacketType.LoginRequest,    new AuthHandler(_router));
@@ -44,6 +51,9 @@ public class TcpServer
     {
         _listener.Start();
         Console.WriteLine($"[TcpServer] Đang lắng nghe tại cổng {((IPEndPoint)_listener.LocalEndpoint).Port}...");
+
+        // chạy worker ghép cặp ở nền, không await để khỏi bị đứng ở đây
+        _ = _matchmaking.RunAsync(_cts.Token);
 
         try
         {
@@ -84,6 +94,7 @@ public class TcpServer
     private void OnSessionDisconnected(ClientSession session)
     {
         _sessions.TryRemove(session.SessionId, out _);
+        _matchmaking.Cancel(session);   // đang chờ tìm trận mà tắt app thì bỏ khỏi hàng đợi
         Console.WriteLine($"[TcpServer] Client {session.SessionId} đã ngắt. Online: {_sessions.Count}");
         // TODO (Dũng - 3.2): broadcast trạng thái Offline cho các client còn lại.
         // TODO (Đức - 3.4): nếu session đang trong phòng thì xử lý rời/huỷ phòng.
