@@ -13,7 +13,7 @@ public static class PacketFraming
     // Gửi gói tin qua NetworkStream: 4 bytes length + json body
     public static void SendPacket(NetworkStream stream, Packet packet)
     {
-        string json = JsonSerializer.Serialize(packet, typeof(Packet));
+        string json = JsonSerializer.Serialize(packet, JsonConfig.Options);
         byte[] body = Encoding.UTF8.GetBytes(json);
         byte[] lengthHeader = BitConverter.GetBytes(body.Length);
 
@@ -44,7 +44,7 @@ public static class PacketFraming
             return null;
 
         string json = Encoding.UTF8.GetString(body);
-        return (Packet?)JsonSerializer.Deserialize(json, typeof(Packet));
+        return JsonSerializer.Deserialize<Packet>(json, JsonConfig.Options);
     }
 
     private static bool ReadExact(NetworkStream stream, byte[] buffer, int offset, int count)
@@ -68,7 +68,7 @@ public static class PacketFraming
     // không xen kẽ byte của nhau trên cùng stream.
     public static async Task SendPacketAsync(NetworkStream stream, Packet packet, CancellationToken ct = default)
     {
-        string json = JsonSerializer.Serialize(packet, typeof(Packet));
+        string json = JsonSerializer.Serialize(packet, JsonConfig.Options);
         byte[] body = Encoding.UTF8.GetBytes(json);
         byte[] lengthHeader = BitConverter.GetBytes(body.Length);
 
@@ -102,7 +102,7 @@ public static class PacketFraming
             return null;
 
         string json = Encoding.UTF8.GetString(body);
-        return (Packet?)JsonSerializer.Deserialize(json, typeof(Packet));
+        return JsonSerializer.Deserialize<Packet>(json, JsonConfig.Options);
     }
 
     // Vòng lặp đọc cho tới khi đủ đúng 'count' byte theo PayloadLength,

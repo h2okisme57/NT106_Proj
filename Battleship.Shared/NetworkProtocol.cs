@@ -3,6 +3,8 @@ using System.Text.Json;
 
 namespace Battleship.Shared;
 
+// LƯU Ý CHUNG: chỉ được THÊM giá trị mới vào CUỐI enum, không chèn giữa / đổi thứ tự.
+// (Đã bật JsonStringEnumConverter nên serialize theo tên, nhưng vẫn giữ nếp append cho sạch.)
 public enum PacketType
 {
     Handshake,
@@ -25,7 +27,15 @@ public enum PacketType
     GameOver,
     ChatMessage,
     OpponentDisconnected,
-    Error
+    Error,
+    // ----- Bổ sung cho các tuần tới (append cuối) -----
+    KickPlayerRequest,          // Đức - 3.4
+    MatchmakingJoinRequest,     // Hoàng - 3.6
+    MatchmakingCancelRequest,   // Hoàng - 3.6
+    MatchFound,                 // Hoàng - 3.6
+    OnlineListUpdate,           // Dũng - 3.2 (broadcast Online/Offline)
+    Ping,                       // Hoàng - 4.3 (heartbeat)
+    Pong                        // Hoàng - 4.3 (heartbeat)
 }
 
 public class Packet
@@ -33,29 +43,30 @@ public class Packet
     public PacketType Type { get; set; }
     public string Payload { get; set; } = string.Empty;
 
+    // Đóng gói: serialize data -> chuỗi JSON đặt vào Payload (dùng cấu hình JSON chung).
     public static Packet Create(PacketType type, object data)
     {
         return new Packet
         {
             Type = type,
-            Payload = JsonSerializer.Serialize(data)
+            Payload = JsonSerializer.Serialize(data, JsonConfig.Options)
         };
     }
 
+    // Mở gói: deserialize Payload về đúng kiểu DTO.
     public object? DeserializePayload(Type targetType)
     {
         if (string.IsNullOrWhiteSpace(Payload))
             return default;
 
-        return JsonSerializer.Deserialize(Payload, targetType);
+        return JsonSerializer.Deserialize(Payload, targetType, JsonConfig.Options);
     }
-}
 
-public class LoginRequestDto
-{
-    public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-}
+    // Tiện ích generic cho gọn ở phía xử lý.
+    public T? DeserializePayload<T>()
+    {
+        if (string.IsNullOrWhiteSpace(Payload))
+            return default;
 
 public class LoginResponseDto
 {
@@ -64,39 +75,20 @@ public class LoginResponseDto
     public string Username { get; set; } = string.Empty;
 }
 
-public class AuthResponse
-{
-    // Báo cho Client biết thao tác thành công hay thất bại
-    public bool IsSuccess { get; set; }
-    // Trả về tên user nếu đăng nhập thành công để Lobby hiển thị
-    public string Username { get; set; }
-}
-
-
 public class FireShotDto
 {
     public int X { get; set; }
     public int Y { get; set; }
 }
 
-public class ShotResultDto
+// Gói lỗi chung, Server trả khi xử lý thất bại / chưa hỗ trợ.
+public class ErrorDto
 {
-    public int X { get; set; }
-    public int Y { get; set; }
-    public bool IsHit { get; set; }
-    public bool IsSunk { get; set; }
-    public string? SunkShipName { get; set; }
-    public string NextTurnPlayer { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
 }
 
-public class ChatMessageDto
-{
-    public string Sender { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; } = DateTime.Now;
-}
+// ===== Phiên bản giao thức & Bắt tay (Handshake) =====
 
-// Thông tin phiên bản giao thức dùng chung Client - Server.
 // Tăng số này mỗi khi đổi cấu trúc Packet/DTO để 2 bên từ chối nối nhầm phiên bản.
 public static class ProtocolInfo
 {

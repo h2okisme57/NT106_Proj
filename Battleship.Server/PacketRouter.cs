@@ -5,106 +5,46 @@ using Battleship.Shared;
 using System;
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 
 
 namespace Battleship.Server;
 
-// Bộ điều hướng: nhận mỗi Packet đã parse từ ClientSession rồi dispatch theo PacketType.
-// Router CHỈ định tuyến + hạ tầng broadcast. Logic nghiệp vụ nằm ở:
-//   - Dũng (3.2): xác thực Login/Register qua AppDbContext + PasswordHelper.
-//   - Đức (3.4 / 4.x): tạo/vào phòng (RoomManager) và gameplay turn-based.
-// Các điểm nối tới phần người khác được đánh dấu TODO để họ cắm code vào.
+// Bộ điều hướng gói tin theo cơ chế ĐĂNG KÝ HANDLER.
+// - Mỗi PacketType được map tới 1 IPacketHandler trong _handlers.
+// - Thành viên khác chỉ việc Register handler của mình, KHÔNG sửa code trong class này
+//   => tránh conflict ở điểm nóng nhất.
 public class PacketRouter
 {
-    private readonly RoomManager _roomManager;
     private readonly ConcurrentDictionary<string, ClientSession> _sessions;
+    private readonly Dictionary<PacketType, IPacketHandler> _handlers = new();
 
-    public PacketRouter(RoomManager roomManager, ConcurrentDictionary<string, ClientSession> sessions)
+    public PacketRouter(ConcurrentDictionary<string, ClientSession> sessions)
     {
-        _roomManager = roomManager;
         _sessions = sessions;
+    }
+
+    // Đăng ký handler cho 1 loại gói. Gọi ở lúc khởi tạo server.
+    public void Register(PacketType type, IPacketHandler handler)
+    {
+        _handlers[type] = handler;
     }
 
     public async Task RouteAsync(ClientSession session, Packet packet)
     {
         try
         {
-            switch (packet.Type)
+            if (_handlers.TryGetValue(packet.Type, out var handler))
             {
                 // ----- Tài khoản (phần của Dũng - 3.2) -----
                 case PacketType.LoginRequest:
-                    {
-                        var req = JsonSerializer.Deserialize<LoginRequestDto>(packet.Payload);
-
-                        using (var db = new AppDbContext())
-                        {
-                            var user = db.Users.FirstOrDefault(u => u.Username == req.Username);
-
-                            if (user != null && PasswordHelper.VerifyPassword(req.Password, user.Password))
-                            {
-                                session.UserId = user.Id;
-                                session.Username = user.Username;
-                                session.IsLoggedIn = true;
-
-                                var res = new AuthResponse { IsSuccess = true, Username = user.Username };
-                                // Đóng gói thành new Packet trước khi gửi
-                                await session.SendAsync(new Packet
-                                {
-                                    Type = PacketType.LoginResponse,
-                                    Payload = JsonSerializer.Serialize(res)
-                                });
-                            }
-                            else
-                            {
-                                var res = new AuthResponse { IsSuccess = false, Username = user.Username };
-                                await session.SendAsync(new Packet
-                                {
-                                    Type = PacketType.LoginResponse,
-                                    Payload = JsonSerializer.Serialize(res)
-                                });
-                            }
-                        }
-                        break;
-                    }
-
                 case PacketType.RegisterRequest:
-                    {
-                        var req = JsonSerializer.Deserialize<LoginRequestDto>(packet.Payload);
-
-                        using (var db = new AppDbContext())
-                        {
-                            if (db.Users.Any(u => u.Username == req.Username))
-                            {
-                                var res = new AuthResponse { IsSuccess = false };
-                                
-                                await session.SendAsync(new Packet
-                                {
-                                    Type = PacketType.RegisterResponse,
-                                    Payload = JsonSerializer.Serialize(res)
-                                });
-                            }
-                            else
-                            {
-                                string hash = PasswordHelper.HashPassword(req.Password);
-                                var newUser = new User { Username = req.Username, Password = hash };
-
-                                db.Users.Add(newUser);
-                                await db.SaveChangesAsync();
-
-                                var res = new AuthResponse { IsSuccess = true };
-                                
-                                await session.SendAsync(new Packet
-                                {
-                                    Type = PacketType.RegisterResponse,
-                                    Payload = JsonSerializer.Serialize(res)
-                                });
-                            }
-                        }
-                        break;
-                    }
-                
+                    // TODO (Dũng): đọc LoginRequestDto, xác thực bằng PasswordHelper + AppDbContext,
+                    // gán session.Username, rồi session.SendAsync(LoginResponse/RegisterResponse).
+                    await ReplyNotImplemented(session, packet.Type);
+                    break;
 
                 // ----- Phòng đấu (phần của Đức - 3.4) -----
                 case PacketType.CreateRoomRequest:
@@ -124,25 +64,8 @@ public class PacketRouter
 
                 // ----- Chat sảnh: Router xử lý trực tiếp bằng broadcast -----
                 case PacketType.ChatMessage:
-                    {
-                        var chatReq = JsonSerializer.Deserialize<ChatMessageDto>(packet.Payload);
-
-                        // 1. Gắn tên thật (Chống giả mạo tên)
-                        chatReq.Sender = session.Username ?? "Unknown";
-
-                        // 2. CHỐT GIỜ CHUẨN CỦA SERVER (Chống sai lệch đồng hồ Client)
-                        chatReq.Timestamp = DateTime.Now;
-
-                        // 3. Đóng gói và phát sóng
-                        Packet broadcastPacket = new Packet
-                        {
-                            Type = PacketType.ChatMessage,
-                            Payload = JsonSerializer.Serialize(chatReq)
-                        };
-
-                        await BroadcastAsync(broadcastPacket);
-                        break;
-                    }
+                    await BroadcastAsync(packet);
+                    break;
 
                 default:
                     Console.WriteLine($"[Router] Chưa định tuyến cho PacketType: {packet.Type} (từ {session.SessionId})");
@@ -155,8 +78,8 @@ public class PacketRouter
         }
     }
 
-    // Phát 1 gói cho mọi client đang online (dùng cho chat sảnh / cập nhật danh sách online).
-    private async Task BroadcastAsync(Packet packet)
+    // Phát 1 gói cho mọi client đang online (handler gọi để chat sảnh / cập nhật online...).
+    public async Task BroadcastAsync(Packet packet)
     {
         foreach (var s in _sessions.Values)
         {
@@ -171,7 +94,13 @@ public class PacketRouter
         }
     }
 
-    private static Task ReplyNotImplemented(ClientSession session, PacketType type)
-        => session.SendAsync(Packet.Create(PacketType.Error,
-            new ChatMessageDto { Sender = "Server", Content = $"Chưa triển khai xử lý cho {type}." }));
+    // Phát cho mọi client TRỪ 1 session (vd: không gửi lại gói chat cho chính người gửi nếu muốn).
+    public async Task BroadcastExceptAsync(Packet packet, ClientSession except)
+    {
+        foreach (var s in _sessions.Values)
+        {
+            if (s.SessionId == except.SessionId) continue;
+            try { await s.SendAsync(packet); } catch { }
+        }
+    }
 }
