@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Battleship.Client.Models
 {
-    internal class Match
+    public class Match
     {
         public int Id { get; set; }
 

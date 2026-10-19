@@ -1,13 +1,17 @@
-﻿using System;
+﻿using Battleship.Shared;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Runtime.InteropServices;
+using System.Text.Json;
+using Battleship.Shared;
+
 
 namespace Battleship.Client
 {
@@ -166,35 +170,86 @@ namespace Battleship.Client
             string user = boxUsernameTxt.Text.Trim();
             string pass = boxPasswordTxt.Text.Trim();
 
-            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass))
+            // 1. Kiểm tra rỗng hoặc chữ placeholder (watermark)
+            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass) ||
+                user == "Tên đăng nhập" || pass == "Mật khẩu")
             {
-                lblErrorTxt.ForeColor = Color.Red; // Đảm bảo màu đỏ cho lỗi
+                lblErrorTxt.ForeColor = Color.Red;
                 lblErrorTxt.Text = "Vui lòng nhập đầy đủ thông tin!";
                 return;
             }
 
-            if (user == "admin" && pass == "123456")
+            lblErrorTxt.ForeColor = Color.Blue;
+            lblErrorTxt.Text = "Đang kết nối...";
+            btnLogin.Enabled = false; // Vô hiệu hóa nút bấm để tránh spam
+
+            try
             {
-                lblErrorTxt.ForeColor = Color.Green;
-                lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
-
-                // DỪNG 0.5 GIÂY: Để người chơi kịp đọc dòng chữ màu xanh trước khi màn hình chuyển đổi
-                await Task.Delay(500);
-
-                Form popup = this.FindForm();
-                if (popup != null)
+                // 2. Tự động kết nối & Bắt tay (Handshake) với Server nếu chưa kết nối
+                if (!NetworkManager.Instance.IsConnected)
                 {
-                    
-                    popup.DialogResult = DialogResult.OK;
+                    bool connected = await NetworkManager.Instance.ConnectAsync("127.0.0.1", 8000);
+                    if (!connected)
+                    {
+                        lblErrorTxt.ForeColor = Color.Red;
+                        lblErrorTxt.Text = "Không thể kết nối đến máy chủ!";
+                        return;
+                    }
+                }
+
+                // 3. Đóng gói DTO thành Packet
+                var loginReq = new LoginRequestDto
+                {
+                    Username = user,
+                    Password = pass
+                };
+                var packet = Packet.Create(PacketType.LoginRequest, loginReq);
+
+                // 4. Gửi lên Server
+                await NetworkManager.Instance.SendAsync(packet);
+
+                // 5. Chờ phản hồi LoginResponse từ Server
+                var responsePacket = await NetworkManager.Instance.WaitForPacketAsync(PacketType.LoginResponse);
+
+                if (responsePacket != null)
+                {
+                    var loginRes = responsePacket.DeserializePayload<LoginResponseDto>();
+
+                    if (loginRes != null && loginRes.Success)
+                    {
+                        lblErrorTxt.ForeColor = Color.Green;
+                        lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
+
+                        await Task.Delay(500); // Đợi 0.5s để người dùng đọc thông báo thành công
+
+                        Form popup = this.FindForm();
+                        if (popup != null)
+                        {
+                            popup.DialogResult = DialogResult.OK; // Đóng Form Login để vào sảnh chính
+                        }
+                    }
+                    else
+                    {
+                        lblErrorTxt.ForeColor = Color.Red;
+                        lblErrorTxt.Text = loginRes?.Message ?? "Tài khoản hoặc mật khẩu không chính xác!";
+                        boxPasswordTxt.Clear();
+                        boxPasswordTxt.Focus();
+                    }
+                }
+                else
+                {
+                    lblErrorTxt.ForeColor = Color.Red;
+                    lblErrorTxt.Text = "Không nhận được phản hồi từ máy chủ!";
                 }
             }
-            else
+            catch (Exception ex)
             {
                 lblErrorTxt.ForeColor = Color.Red;
-                lblErrorTxt.Text = "Sai Username hoặc Password!";
-
-                boxPasswordTxt.Clear();
-                boxPasswordTxt.Focus();
+                lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
+            }
+            finally
+            {
+                btnLogin.Enabled = true; // Mở lại nút bấm khi hoàn tất
             }
         }
     }

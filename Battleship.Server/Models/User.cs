@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Battleship.Client.Models
 {
-    internal class User
+    public class User
     {
         public string Id { get; set; }
         public bool Condition { get; set; } = false;
