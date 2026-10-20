@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using Battleship.Shared; // BẮT BUỘC THÊM DÒNG NÀY ĐỂ DÙNG DTO & PACKET
+using Battleship.Shared; 
 
 namespace Battleship.Client
 {

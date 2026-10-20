@@ -13,6 +13,12 @@ namespace Battleship.Client
 
         private TcpClient _client;
         private NetworkStream _stream;
+        private CancellationTokenSource _receiveCts;
+
+        // =======================================================
+        // SỰ KIỆN: Phát tín hiệu mỗi khi nhận được Packet từ Server
+        // =======================================================
+        public event Action<Packet> OnPacketReceived;
 
         public bool IsConnected => _client != null && _client.Connected;
 
@@ -35,6 +41,13 @@ namespace Battleship.Client
                 if (ack != null && ack.Accepted)
                 {
                     Console.WriteLine($"[NetworkManager] Bắt tay thành công. SessionId: {ack.SessionId}");
+
+                    // =======================================================
+                    // KHỞI ĐỘNG LUỒNG LẮNG NGHE SAU KHI BẮT TAY THÀNH CÔNG
+                    // =======================================================
+                    _receiveCts = new CancellationTokenSource();
+                    _ = ReceiveLoopAsync(_receiveCts.Token); // Fire-and-forget task
+
                     return true;
                 }
 
@@ -50,23 +63,66 @@ namespace Battleship.Client
             }
         }
 
+        // =======================================================
+        // VÒNG LẶP CHẠY NGẦM ĐỂ ĐỌC GÓI TIN LIÊN TỤC
+        // =======================================================
+        private async Task ReceiveLoopAsync(CancellationToken ct)
+        {
+            try
+            {
+                while (IsConnected && !ct.IsCancellationRequested)
+                {
+                    // Đọc trọn gói tin theo chuẩn framing 4-byte
+                    Packet? packet = await PacketFraming.ReadPacketAsync(_stream, ct);
+
+                    if (packet != null)
+                    {
+                        // Kích hoạt sự kiện để Lobby (và các UI khác) xử lý
+                        OnPacketReceived?.Invoke(packet);
+                    }
+                    else
+                    {
+                        // Nếu packet trả về null, tức là kết nối đã bị đóng từ phía Server
+                        Console.WriteLine("[NetworkManager] Mất kết nối từ máy chủ.");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                Console.WriteLine($"[NetworkManager] Lỗi vòng lặp nhận dữ liệu: {ex.Message}");
+            }
+            finally
+            {
+                Disconnect();
+            }
+        }
+
         /// <summary>
         /// Gửi 1 Packet xuống Server sử dụng PacketFraming
         /// </summary>
         public async Task SendAsync(Packet packet, CancellationToken ct = default)
         {
             if (!IsConnected || _stream == null) return;
-            await PacketFraming.SendPacketAsync(_stream, packet, ct);
+            try
+            {
+                await PacketFraming.SendPacketAsync(_stream, packet, ct);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NetworkManager] Lỗi khi gửi: {ex.Message}");
+                Disconnect();
+            }
         }
 
         /// <summary>
-        /// Đọc 1 Packet từ Server
+        /// Đọc 1 Packet từ Server (Sử dụng song song với ReceiveLoopAsync có thể gây tranh chấp luồng. 
+        /// Nên sử dụng OnPacketReceived để xử lý bất đồng bộ toàn diện hơn).
         /// </summary>
         public async Task<Packet?> WaitForPacketAsync(PacketType expectedType, CancellationToken ct = default)
         {
             if (!IsConnected || _stream == null) return null;
 
-            // Đọc trọn gói tin theo chuẩn framing 4-byte
             Packet? packet = await PacketFraming.ReadPacketAsync(_stream, ct);
 
             if (packet != null && packet.Type == expectedType)
@@ -82,6 +138,10 @@ namespace Battleship.Client
         /// </summary>
         public void Disconnect()
         {
+            _receiveCts?.Cancel();
+            _receiveCts?.Dispose();
+            _receiveCts = null;
+
             _stream?.Close();
             _client?.Close();
             _stream = null;

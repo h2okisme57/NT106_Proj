@@ -4,7 +4,18 @@ using System.Collections.Generic;
 namespace Battleship.Shared;
 
 // ===== Sảnh chờ: Chat & Danh sách Online (dùng cho phần của Dũng - 3.2 / 3.5) =====
+public class FriendDto
+{
+    public string Username { get; set; } = string.Empty;
+    public bool IsOnline { get; set; }
+}
 
+public class GetFriendsResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public List<FriendDto> Friends { get; set; } = new List<FriendDto>();
+}
 public class ChatMessageDto
 {
     public string Sender { get; set; } = string.Empty;

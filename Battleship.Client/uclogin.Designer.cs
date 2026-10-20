@@ -122,7 +122,7 @@
             Controls.Add(lblLoginLogoTxt);
             Name = "ucLogin";
             Size = new Size(545, 406);
-            Load += uclogin_Load;
+            Load += ucLogin_Load;
             ResumeLayout(false);
             PerformLayout();
         }

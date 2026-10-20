@@ -1,10 +1,7 @@
-﻿using System;
+﻿using Battleship.Shared;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -15,39 +12,65 @@ namespace Battleship.Client
         public Profile()
         {
             InitializeComponent();
-            Profile_load();
+            _ = LoadProfileAndFriendsAsync();
         }
 
-        private void Profile_load()
+        private async Task LoadProfileAndFriendsAsync()
         {
-
             tabProfile.Multiline = true;
-            //Data
-            string username = "admin";
-            int id = 0;
-            int wincco = 10;
-            int lose = 5;
 
+            // 1. Hiển thị thông tin cá nhân từ PlayerProfile
+            if (PlayerProfile.CurrentUser != null)
+            {
+                lblID.Text = $"ID: {PlayerProfile.Id}";
+                lblUsername.Text = $"Username: {PlayerProfile.Username}";
+                lblWin.Text = $"Wins: {PlayerProfile.Wins}";
+                lblLose.Text = $"Losses: {PlayerProfile.Losses}";
+            }
 
-            lblID.Text = "ID: " + id.ToString();
-            lblUsername.Text = "Username: " + username;
-            lblWin.Text = "Wins: " + wincco.ToString();
-            lblLose.Text = "Losses: " + lose.ToString();
-
-
-            AddFriendCard("Dũng", true);
-            AddFriendCard("Đức", false);
-            AddFriendCard("Trí", true);
-            AddFriendCard("Hùng", false);
+            // 2. Tải danh sách bạn bè từ Server
+            await FetchFriendsListAsync();
         }
 
+        private async Task FetchFriendsListAsync()
+        {
+            flpFriend.Controls.Clear();
+
+            try
+            {
+                if (!NetworkManager.Instance.IsConnected) return;
+
+                // Gửi request yêu cầu danh sách bạn bè
+                var packet = Packet.Create(PacketType.GetFriendsRequest, PlayerProfile.Id);
+                await NetworkManager.Instance.SendAsync(packet);
+
+                // Nhận response từ Server
+                var responsePacket = await NetworkManager.Instance.WaitForPacketAsync(PacketType.GetFriendsResponse);
+
+                if (responsePacket != null)
+                {
+                    var response = responsePacket.DeserializePayload<GetFriendsResponseDto>();
+
+                    if (response != null && response.Success)
+                    {
+                        foreach (var friend in response.Friends)
+                        {
+                            AddFriendCard(friend.Username, friend.IsOnline);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Có thể hiển thị thông báo lỗi lên UI nếu cần
+                Console.WriteLine($"Lỗi tải bạn bè: {ex.Message}");
+            }
+        }
 
         public void AddFriendCard(string friendName, bool isOnline)
         {
-            // Ensure parent panel enables vertical scrolling when items exceed height
             flpFriend.AutoScroll = true;
 
-            // Determine available width (account for vertical scrollbar width if active)
             int scrollbarWidth = SystemInformation.VerticalScrollBarWidth;
             int targetWidth = flpFriend.ClientSize.Width - scrollbarWidth - 10;
 
@@ -58,10 +81,8 @@ namespace Battleship.Client
                 Margin = new Padding(0, 0, 0, 4)
             };
 
-            // Horizontally center the card inside flpFriend
             int centerX = Math.Max((flpFriend.ClientSize.Width - card.Width) / 2, 0);
 
-            // Label positioning
             Label lblName = new Label
             {
                 Text = friendName,
@@ -82,13 +103,11 @@ namespace Battleship.Client
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
 
-            // Calculate position for status label relative to right side of card
             lblStatus.Location = new Point(card.Width - 75, 10);
 
             card.Controls.Add(lblName);
             card.Controls.Add(lblStatus);
-                
-            // If pnlFriend is a standard Panel, calculate Y offset manually
+
             if (!(pnlFriend is FlowLayoutPanel))
             {
                 int spacing = 4;
@@ -102,10 +121,6 @@ namespace Battleship.Client
 
             flpFriend.Controls.Add(card);
         }
-        private void tabPageProfile_Click(object sender, EventArgs e)
-        {
-
-        }
 
         private void btnBack_Click(object sender, EventArgs e)
         {
@@ -113,9 +128,12 @@ namespace Battleship.Client
             this.Dispose();
         }
 
-        private void tabPageFriend_Click(object sender, EventArgs e)
-        {
-
-        }
+        private void tabPageProfile_Click(object sender, EventArgs e) { }
+        private void tabPageFriend_Click(object sender, EventArgs e) { }
+        private void lblWin_Click(object sender, EventArgs e) { }
+        private void lblLose_Click(object sender, EventArgs e) { }
+        private void lblID_Click(object sender, EventArgs e) { }
+        private void lblUsername_Click(object sender, EventArgs e) { }
+        private void label1_Click(object sender, EventArgs e) { }
     }
 }

@@ -1,10 +1,7 @@
-﻿using System;
+﻿using Battleship.Shared;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -15,34 +12,102 @@ namespace Battleship.Client
         public joinRoom()
         {
             InitializeComponent();
-            Join_Load();
-        }
-        private void Join_Load()
-        {
-            ClearRoomList();
-
-            // Dữ liệu giả lập để test giao diện
-            AddRoomCard("R101", "Dũng", 1);
-            AddRoomCard("R102", "Đức", 2);
-            AddRoomCard("R103", "Trí", 1);
         }
 
-        private void button1_Click(object sender, EventArgs e)
-        {
-            this.Parent?.Controls.Remove(this);
-            this.Dispose();
-        }
-
-        private void joinRoom_Load(object sender, EventArgs e)
+        private async void joinRoom_Load(object sender, EventArgs e)
         {
             pnlJoin.AutoScroll = true;
-            // Làm nền mờ bán trong suốt (Đen mờ) để giao diện hiện đại giống Lobby
             pnlJoin.BackColor = Color.FromArgb(120, 0, 0, 0);
             pnlJoin.FlowDirection = FlowDirection.TopDown;
             pnlJoin.WrapContents = false;
 
-            // Ép vẽ lại để chống nhòe khi cuộn thanh cuộn
             pnlJoin.Scroll += (s, ev) => { pnlJoin.Invalidate(); };
+
+            // Đăng ký nhận Packet từ NetworkManager
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
+            }
+
+            // Tải danh sách phòng từ Server khi vừa mở màn hình
+            await RequestRoomListAsync();
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            // Hủy đăng ký sự kiện khi UserControl bị đóng để tránh leak bộ nhớ
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
+            }
+            base.OnHandleDestroyed(e);
+        }
+
+        // =========================================================
+        // GỬI YÊU CẦU LẤY DANH SÁCH PHÒNG LÊN SERVER
+        // =========================================================
+        private async Task RequestRoomListAsync()
+        {
+            ClearRoomList();
+
+            if (!NetworkManager.Instance.IsConnected) return;
+
+            try
+            {
+                var packet = Packet.Create(PacketType.GetRoomsRequest, string.Empty);
+                await NetworkManager.Instance.SendAsync(packet);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[joinRoom] Lỗi gửi yêu cầu danh sách phòng: {ex.Message}");
+            }
+        }
+
+        // =========================================================
+        // NHẬN PACKET BẤT ĐỒNG BỘ TỪ SERVER
+        // =========================================================
+        private void NetworkManager_OnPacketReceived(Packet packet)
+        {
+            if (packet.Type == PacketType.GetRoomsResponse)
+            {
+                var response = packet.DeserializePayload<RoomListResponseDto>();
+
+                ClearRoomList();
+
+                if (response?.Rooms != null && response.Rooms.Count > 0)
+                {
+                    foreach (var room in response.Rooms)
+                    {
+                        // Tính số người hiện tại (Host luôn có 1, nếu có Guest nữa là 2)
+                        int currentPlayers = string.IsNullOrEmpty(room.GuestName) ? 1 : 2;
+                        AddRoomCard(room.RoomId, room.HostName, currentPlayers, room.State);
+                    }
+                }
+            }
+            else if (packet.Type == PacketType.JoinRoomResponse)
+            {
+                var response = packet.DeserializePayload<RoomUpdateDto>();
+
+                if (response?.Room != null)
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        MessageBox.Show($"Vào phòng {response.Room.RoomId} thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        // Đóng UserControl joinRoom sau khi vào phòng thành công
+                        this.Parent?.Controls.Remove(this);
+                        this.Dispose();
+                    }));
+                }
+                else
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        MessageBox.Show("Không thể tham gia phòng này!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        _ = RequestRoomListAsync();
+                    }));
+                }
+            }
         }
 
         public void ClearRoomList()
@@ -53,7 +118,6 @@ namespace Battleship.Client
                 return;
             }
 
-            // Giải phóng triệt để RAM của các control cũ chống lag
             foreach (Control ctrl in pnlJoin.Controls)
             {
                 ctrl.Dispose();
@@ -61,26 +125,22 @@ namespace Battleship.Client
             pnlJoin.Controls.Clear();
         }
 
-
         // =========================================================
-        // HÀM 2: VẼ THẺ PHÒNG MỚI (Luồng mạng sẽ gọi hàm này)
+        // VẼ THẺ PHÒNG MỚI DỰA TRÊN DỮ LIỆU CHUẨN
         // =========================================================
-        public void AddRoomCard(string roomId, string hostName, int currentPlayers)
+        public void AddRoomCard(string roomId, string hostName, int currentPlayers, RoomState state)
         {
-            // Bắt buộc dùng Invoke vì hàm này được gọi từ luồng nhận dữ liệu của Server
             if (pnlJoin.InvokeRequired)
             {
-                pnlJoin.Invoke(new Action(() => AddRoomCard(roomId, hostName, currentPlayers)));
+                pnlJoin.Invoke(new Action(() => AddRoomCard(roomId, hostName, currentPlayers, state)));
                 return;
             }
 
-            // 1. Khung của thẻ phòng
             Panel card = new Panel();
-            card.Size = new Size(pnlJoin.Width - 10, 60); // Trừ hao thanh cuộn
-            card.BackColor = Color.FromArgb(80, 255, 255, 255); // Trắng mờ
+            card.Size = new Size(pnlJoin.Width - 10, 60);
+            card.BackColor = Color.FromArgb(80, 255, 255, 255);
             card.Margin = new Padding(5, 5, 5, 5);
 
-            // 2. Tên chủ phòng & ID Phòng
             Label lblHost = new Label();
             lblHost.Text = $"Phòng của {hostName} (ID: {roomId})";
             lblHost.ForeColor = Color.White;
@@ -89,68 +149,69 @@ namespace Battleship.Client
             lblHost.AutoSize = true;
             lblHost.BackColor = Color.Transparent;
 
-            // 3. Số người chơi (Màu xanh nếu 1 người, màu đỏ nếu đã đầy)
             Label lblCount = new Label();
             lblCount.Text = $"{currentPlayers}/2";
-            lblCount.ForeColor = currentPlayers == 1 ? Color.LimeGreen : Color.Red;
+            lblCount.ForeColor = (currentPlayers == 1 && state == RoomState.Waiting) ? Color.LimeGreen : Color.Red;
             lblCount.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             lblCount.Location = new Point(card.Width - 140, 18);
             lblCount.AutoSize = true;
             lblCount.BackColor = Color.Transparent;
 
-            // 4. Nút Tham Gia
             Button btnJoin = new Button();
             btnJoin.Text = "Join";
             btnJoin.Size = new Size(80, 35);
             btnJoin.Location = new Point(card.Width - 90, 12);
-            btnJoin.BackColor = ColorTranslator.FromHtml("#8B1E2D"); // Đỏ đô
+            btnJoin.BackColor = ColorTranslator.FromHtml("#8B1E2D");
             btnJoin.ForeColor = Color.White;
             btnJoin.FlatStyle = FlatStyle.Flat;
             btnJoin.FlatAppearance.BorderSize = 0;
             btnJoin.Cursor = Cursors.Hand;
             btnJoin.Font = new Font("Segoe UI", 9, FontStyle.Bold);
 
-            // Xử lý logic nếu phòng đã đầy
-            if (currentPlayers >= 2)
+            // Kiểm tra trạng thái phòng (đầy người hoặc đang chơi)
+            if (currentPlayers >= 2 || state != RoomState.Waiting)
             {
                 btnJoin.Enabled = false;
                 btnJoin.BackColor = Color.Gray;
-                btnJoin.Text = "Full";
+                btnJoin.Text = state == RoomState.Playing ? "Playing" : "Full";
             }
             else
             {
-                // Gắn sự kiện click gửi Packet lên Server
                 btnJoin.Click += async (s, ev) =>
                 {
-                    // Vô hiệu hóa nút tạm thời để tránh bấm 2 lần
                     btnJoin.Enabled = false;
                     btnJoin.Text = "Đang vào...";
 
-                    // TODO: Gửi Packet JoinRoomRequest lên Server
-                    // var packet = new Packet { Type = PacketType.JoinRoomRequest, Payload = roomId };
-                    // await ClientNetwork.SendAsync(packet);
+                    // Khởi tạo JoinRoomDto chuẩn từ Shared
+                    var joinDto = new JoinRoomDto
+                    {
+                        RoomId = roomId
+                    };
+
+                    var packet = Packet.Create(PacketType.JoinRoomRequest, joinDto);
+                    await NetworkManager.Instance.SendAsync(packet);
                 };
             }
 
-            // Nhét Label và Nút vào Thẻ phòng
             card.Controls.Add(lblHost);
             card.Controls.Add(lblCount);
             card.Controls.Add(btnJoin);
 
-            // Nhét Thẻ phòng vào Danh sách
             pnlJoin.Controls.Add(card);
         }
 
-
-        private void flowLayoutPanel1_Paint_1(object sender, PaintEventArgs e)
+        private void button1_Click(object sender, EventArgs e)
         {
-
+            this.Parent?.Controls.Remove(this);
+            this.Dispose();
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private async void button2_Click(object sender, EventArgs e)
         {
-            //Ham tim id
-
+            // Nút Refresh danh sách phòng
+            await RequestRoomListAsync();
         }
+
+        private void flowLayoutPanel1_Paint_1(object sender, PaintEventArgs e) { }
     }
 }

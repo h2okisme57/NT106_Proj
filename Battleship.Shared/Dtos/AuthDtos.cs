@@ -10,9 +10,17 @@ public class LoginRequestDto
 
 public class LoginResponseDto
 {
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public string Username { get; set; } = string.Empty;
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+
+        // --- Toàn bộ thông tin người chơi ---
+        public string UserId { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public int Wins { get; set; }
+        public int Losses { get; set; }
+        public int Score { get; set; }
+         public List<string> FriendsList { get; set; } = new List<string>();
+    
 }
 
 public class RegisterRequestDto

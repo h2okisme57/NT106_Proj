@@ -14,23 +14,23 @@ namespace Battleship.Client
 {
     public partial class Lobby : UserControl
     {
-        // Biến cờ để đánh dấu trạng thái đăng nhập
         private bool isLoggedIn = false;
         private joinRoom pnlJoinRoom;
         private Profile pnlProfile;
+        private FlowLayoutPanel chatPanel;
+
         public Lobby()
         {
             InitializeComponent();
             this.Load += Lobby_Load;
             boxChat.KeyDown += boxChat_KeyDown;
-            //SetupTestButton();
         }
 
         private void Lobby_Load(object sender, EventArgs e)
         {
             boxChat.BorderStyle = BorderStyle.None;
             CreateTransparentChatBox();
-            // Khai báo màu chữ chung từ mã Hex
+
             Color textColorBtn = ColorTranslator.FromHtml("#F4D35E");
             Color textColorLogo = ColorTranslator.FromHtml("#8B1E2D");
 
@@ -39,69 +39,64 @@ namespace Battleship.Client
                 lblBattleshiptxt.UseCompatibleTextRendering = true;
                 lblBattleshiptxt.Font = FontManager.GetFont(24f, FontStyle.Bold);
                 lblBattleshiptxt.BackColor = Color.Transparent;
-
-                // Sửa màu chữ Label 
                 lblBattleshiptxt.ForeColor = textColorLogo;
             }
 
-            // Tạo các nút bấm với font chữ, màu sắc và hiệu ứng hover
             foreach (Control ctrl in this.Controls)
             {
-
                 if (ctrl is Button btn)
                 {
                     btn.UseCompatibleTextRendering = true;
-
                     btn.Font = FontManager.GetFont(14f, FontStyle.Bold);
-
                     btn.FlatStyle = FlatStyle.Flat;
                     btn.BackColor = Color.Transparent;
-
                     btn.ForeColor = textColorBtn;
                     btn.TextAlign = ContentAlignment.MiddleLeft;
                     btn.Padding = new Padding(30, 0, 0, 0);
-
                     btn.FlatAppearance.BorderSize = 0;
-
-
                     btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(100, 22, 46, 147);
-
-
                     btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(150, 26, 25, 83);
                 }
             }
+
+            // =========================================================
+            // LẮNG NGHE TIN NHẮN CHAT TỪ NETWORKMANAGER
+            // =========================================================
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
+            }
         }
 
-        //code thu nghiem chat lobby
-        private void SetupTestButton()
+        // Đăng ký hủy sự kiện khi UserControl bịDispose/đóng
+        protected override void OnHandleDestroyed(EventArgs e)
         {
-            Button btnTest = new Button();
-            btnTest.Text = "Thử nhận tin nhắn";
-            // Tọa độ đặt ngay bên dưới khung chat (chatPanel cao 300, tọa độ Y 20 -> Đặt nút ở Y 330)
-            btnTest.Location = new Point(20, 330);
-            btnTest.Size = new Size(150, 35);
-
-            int count = 0;
-            // Bắt sự kiện click để tự động bơm dòng chat giả vào
-            btnTest.Click += (s, e) =>
+            if (NetworkManager.Instance != null)
             {
-                count++;
-                AddChatMessage("Hệ thống", $"Dòng tin nhắn thử nghiệm số {count}. Nền trong suốt hoạt động rất tốt!");
-            };
-
-            this.Controls.Add(btnTest);
-            btnTest.BringToFront(); // Đẩy lên trên cùng để không bị ảnh nền đè
+                NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
+            }
+            base.OnHandleDestroyed(e);
         }
 
-        private FlowLayoutPanel chatPanel;
-
-        private void DeleteAccess()
+        // =========================================================
+        // NHẬN PACKET BẤT ĐỒNG BỘ TỪ SERVER
+        // =========================================================
+        private void NetworkManager_OnPacketReceived(Packet packet)
         {
-            if (pnlJoinRoom != null && this.Controls.Contains(pnlJoinRoom))
+            if (packet.Type == PacketType.ChatMessage)
             {
-                this.Controls.Remove(pnlJoinRoom);
-                pnlJoinRoom.Dispose();
-                pnlJoinRoom = null;
+                try
+                {
+                    var chatMsg = packet.DeserializePayload<ChatMessageDto>();
+                    if (chatMsg != null)
+                    {
+                        AddChatMessage(chatMsg.Sender, chatMsg.Content);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi giải mã tin nhắn: {ex.Message}");
+                }
             }
         }
 
@@ -111,72 +106,101 @@ namespace Battleship.Client
             chatPanel.Name = "chatPanel";
             chatPanel.Location = new Point(566, 213);
             chatPanel.Size = new Size(412, 400);
-
             chatPanel.AutoScroll = true;
-
-            // --- SỬA Ở ĐÂY: TẠO NỀN MỜ BÁN TRONG SUỐT ---
-            // Thông số: 120 là độ mờ (0=trong vắt, 255=đặc xịt). 
-            // 0, 0, 0 là mã màu Đen (RGB).
             chatPanel.BackColor = Color.FromArgb(120, 0, 0, 0);
-
             chatPanel.FlowDirection = FlowDirection.TopDown;
             chatPanel.WrapContents = false;
 
             this.Controls.Add(chatPanel);
         }
 
-
         private void AddChatMessage(string sender, string content)
         {
-            Label msgLabel = new Label();
-            msgLabel.Text = $"[{sender}]: {content}";
+            if (chatPanel.IsDisposed || !chatPanel.IsHandleCreated) return;
 
-            // Cấu hình nhãn trong suốt và tự động giãn chữ
-            msgLabel.BackColor = Color.Transparent;
-            msgLabel.ForeColor = Color.White;
-            msgLabel.AutoSize = true;
-            msgLabel.MaximumSize = new Size(370, 0); // Ép xuống dòng nếu chat quá dài
-
-            // Dùng Invoke nếu đang ở luồng mạng
+            // Dùng Invoke để đảm bảo cập nhật UI trên Main Thread
             chatPanel.Invoke(new Action(() =>
             {
-                chatPanel.Controls.Add(msgLabel);
+                Label msgLabel = new Label();
+                msgLabel.Text = $"[{sender}]: {content}";
+                msgLabel.BackColor = Color.Transparent;
+                msgLabel.ForeColor = Color.White;
+                msgLabel.AutoSize = true;
+                msgLabel.MaximumSize = new Size(370, 0);
 
-                // Tự động cuộn xuống dưới cùng
+                chatPanel.Controls.Add(msgLabel);
                 chatPanel.ScrollControlIntoView(msgLabel);
             }));
         }
 
-        private void boxChat_KeyDown(object sender, KeyEventArgs e)
+        // =========================================================
+        // GỬI TIN NHẮN CHAT LÊN SERVER
+        // =========================================================
+        private async void boxChat_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)
             {
-                e.SuppressKeyPress = true;
-                if (string.IsNullOrWhiteSpace(boxChat.Text)) return;
+                e.SuppressKeyPress = true; // Ngăn tiếng píp beep của Windows
+                string messageText = boxChat.Text.Trim();
 
-                var chatMsg = new ChatMessageDto { Content = boxChat.Text };
-                var packet = new Packet
+                if (string.IsNullOrWhiteSpace(messageText)) return;
+
+                if (!NetworkManager.Instance.IsConnected)
                 {
-                    Type = PacketType.ChatMessage,
-                    Payload = JsonSerializer.Serialize(chatMsg)
-                };
+                    AddChatMessage("Hệ thống", "Chưa kết nối đến máy chủ!");
+                    return;
+                }
 
-                // Gửi lên Server (thay _client.SendAsync bằng hàm gửi mạng của bạn)
-                // Chua co ClientNetwork, nên tạm thời comment lại
-                //await SendAsync(packet);
+                try
+                {
+                    // Tạo DTO chứa nội dung tin nhắn và Tên người gửi từ PlayerProfile
+                    var chatMsg = new ChatMessageDto
+                    {
+                        Sender = PlayerProfile.Username,
+                        Content = messageText
+                    };
 
-                boxChat.Clear();
+                    var packet = Packet.Create(PacketType.ChatMessage, chatMsg);
+
+                    // Xóa khung chat ngay để nâng cao trải nghiệm người dùng
+                    boxChat.Clear();
+
+                    // Gửi bất đồng bộ lên Server
+                    await NetworkManager.Instance.SendAsync(packet);
+                }
+                catch (Exception ex)
+                {
+                    AddChatMessage("Hệ thống", $"Lỗi gửi tin nhắn: {ex.Message}");
+                }
             }
         }
 
+        private void DeleteAccess()
+        {
+            if (pnlJoinRoom != null && this.Controls.Contains(pnlJoinRoom))
+            {
+                this.Controls.Remove(pnlJoinRoom);
+                pnlJoinRoom.Dispose();
+                pnlJoinRoom = null;
+            }
 
-        // === HÀM KIỂM TRA ĐĂNG NHẬP ===
+            if (pnlProfile != null && this.Controls.Contains(pnlProfile))
+            {
+                this.Controls.Remove(pnlProfile);
+                pnlProfile.Dispose();
+                pnlProfile = null;
+            }
+        }
+
         private bool CheckLogin()
         {
-            if (isLoggedIn)
-                return true; // Nếu đã đăng nhập rồi thì cho qua luôn
+            // Kiểm tra xem trong PlayerProfile đã có thông tin người dùng chưa
+            if (PlayerProfile.CurrentUser != null)
+            {
+                isLoggedIn = true;
+                return true;
+            }
 
-            // Nếu chưa đăng nhập, dựng Popup chứa ucLogin lên giữa Lobby
             using (Form popupLogin = new Form())
             {
                 ucLogin loginScreen = new ucLogin();
@@ -185,7 +209,6 @@ namespace Battleship.Client
                 popupLogin.FormBorderStyle = FormBorderStyle.None;
                 popupLogin.StartPosition = FormStartPosition.CenterScreen;
 
-                // Hiển thị khung Login chặn màn hình
                 DialogResult result = popupLogin.ShowDialog();
 
                 if (result == DialogResult.OK)
@@ -200,27 +223,22 @@ namespace Battleship.Client
             }
         }
 
-        // === CÁC NÚT BẤM ===
         private void btnFindRoom_Click(object sender, EventArgs e)
         {
-
             if (!CheckLogin()) return;
             DeleteAccess();
-            // Code tìm phòng của bạn sẽ viết ở đây (chỉ chạy khi đã login)
         }
 
         private void btnCreateRoom_Click(object sender, EventArgs e)
         {
             if (!CheckLogin()) return;
             DeleteAccess();
-            // Code tạo phòng
         }
 
         private void btnJoinRoom_Click(object sender, EventArgs e)
         {
             if (!CheckLogin()) return;
             DeleteAccess();
-            // Code tham gia phòng
 
             if (pnlJoinRoom != null && this.Controls.Contains(pnlJoinRoom))
             {
@@ -228,18 +246,12 @@ namespace Battleship.Client
                 return;
             }
 
-            // 2. Khởi tạo UserControl joinRoom
             pnlJoinRoom = new joinRoom();
-
-            // 3. TÍNH TOÁN CĂN GIỮA MÀN HÌNH LOBBY
             int centerX = (this.Width - pnlJoinRoom.Width) / 2;
             int centerY = (this.Height - pnlJoinRoom.Height) / 2;
             pnlJoinRoom.Location = new Point(centerX, centerY);
-
-            // 4. Gắn thêm viền (tùy chọn) để bảng nổi bật lên khỏi nền Lobby
             pnlJoinRoom.BorderStyle = BorderStyle.FixedSingle;
 
-            // 5. Đưa bảng vào Lobby và ép hiển thị trên cùng (che khuất các thành phần khác)
             this.Controls.Add(pnlJoinRoom);
             pnlJoinRoom.BringToFront();
         }
@@ -247,20 +259,14 @@ namespace Battleship.Client
         private void btnProfile_Click(object sender, EventArgs e)
         {
             if (!CheckLogin()) return;
-            DeleteAccess(); 
-            // Code mở hồ sơ
+            DeleteAccess();
 
             pnlProfile = new Profile();
-
-            // 3. TÍNH TOÁN CĂN GIỮA MÀN HÌNH LOBBY
             int centerX = (this.Width - pnlProfile.Width) / 2;
             int centerY = (this.Height - pnlProfile.Height) / 2;
             pnlProfile.Location = new Point(centerX, centerY);
-
-            // 4. Gắn thêm viền (tùy chọn) để bảng nổi bật lên khỏi nền Lobby
             pnlProfile.BorderStyle = BorderStyle.FixedSingle;
 
-            // 5. Đưa bảng vào Lobby và ép hiển thị trên cùng (che khuất các thành phần khác)
             this.Controls.Add(pnlProfile);
             pnlProfile.BringToFront();
         }
@@ -268,27 +274,11 @@ namespace Battleship.Client
         private void btnQuit_Click(object sender, EventArgs e)
         {
             Application.Exit();
-
         }
 
-        private void lblBattleshiptxt_Click(object sender, EventArgs e)
-        {
-            //Code bị thừa
-        }
-
-        private void richTextBox1_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void textBox1_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void Lobby_Load_1(object sender, EventArgs e)
-        {
-
-        }
+        private void lblBattleshiptxt_Click(object sender, EventArgs e) { }
+        private void richTextBox1_TextChanged(object sender, EventArgs e) { }
+        private void textBox1_TextChanged(object sender, EventArgs e) { }
+        private void Lobby_Load_1(object sender, EventArgs e) { }
     }
 }

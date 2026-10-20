@@ -75,50 +75,55 @@
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(137, 145);
+            label1.Location = new Point(134, 147);
             label1.Name = "label1";
             label1.Size = new Size(16, 25);
             label1.TabIndex = 7;
             label1.Text = "|";
+            label1.Click += this.label1_Click;
             // 
             // lblLose
             // 
             lblLose.ForeColor = Color.Firebrick;
-            lblLose.Location = new Point(159, 145);
+            lblLose.Location = new Point(156, 147);
             lblLose.Name = "lblLose";
             lblLose.Size = new Size(88, 38);
             lblLose.TabIndex = 6;
             lblLose.Text = "Lose:";
+            lblLose.Click += this.lblLose_Click;
             // 
             // lblID
             // 
             lblID.AutoSize = true;
-            lblID.Location = new Point(20, 43);
+            lblID.Location = new Point(17, 45);
             lblID.Name = "lblID";
             lblID.Size = new Size(34, 25);
             lblID.TabIndex = 2;
             lblID.Text = "ID:";
+            lblID.Click += this.lblID_Click;
             // 
             // lblUsername
             // 
             lblUsername.AutoSize = true;
-            lblUsername.Location = new Point(20, 97);
+            lblUsername.Location = new Point(17, 99);
             lblUsername.Name = "lblUsername";
             lblUsername.Size = new Size(95, 25);
             lblUsername.TabIndex = 3;
             lblUsername.Text = "Username:";
+            lblUsername.Click += this.lblUsername_Click;
             // 
             // lblWin
             // 
             lblWin.Anchor = AnchorStyles.None;
             lblWin.AutoSize = true;
             lblWin.ForeColor = Color.ForestGreen;
-            lblWin.Location = new Point(63, 145);
+            lblWin.Location = new Point(60, 147);
             lblWin.Name = "lblWin";
             lblWin.RightToLeft = RightToLeft.No;
             lblWin.Size = new Size(52, 25);
             lblWin.TabIndex = 5;
             lblWin.Text = "Win: ";
+            lblWin.Click += lblWin_Click;
             // 
             // tabPageFriend
             // 

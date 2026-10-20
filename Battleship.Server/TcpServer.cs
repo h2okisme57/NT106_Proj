@@ -32,16 +32,21 @@ public class TcpServer
     {
         _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
 
-
         // DONE (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
         var authHandler = new AuthHandler();
         _router.Register(PacketType.LoginRequest, authHandler);
         _router.Register(PacketType.RegisterRequest, authHandler);
 
-        // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick (dùng _roomManager)
-        //   var roomHandler = new RoomHandler(_roomManager, _router);
-        //   _router.Register(PacketType.CreateRoomRequest, roomHandler);
-        //   _router.Register(PacketType.JoinRoomRequest,   roomHandler);
+        // =========================================================================
+        // ĐĂNG KÝ THÊM HANDLER XỬ LÝ BẠN BÈ (FriendHandler)
+        // =========================================================================
+        var friendHandler = new FriendHandler(_sessions);
+        _router.Register(PacketType.GetFriendsRequest, friendHandler);
+
+        // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
+        // var roomHandler = new RoomHandler(_roomManager, _router);
+        // _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        // _router.Register(PacketType.JoinRoomRequest,   roomHandler);
     }
 
     public async Task StartAsync()

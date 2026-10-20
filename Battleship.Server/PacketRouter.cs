@@ -1,14 +1,9 @@
-using Battleship.Client.Models;
-using Battleship.Server.Helpers;
-using Battleship.Server.Models;
 using Battleship.Shared;
 using System;
 using System.Collections.Concurrent;
-using System.Text.Json;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Linq;
-
+using static Battleship.Shared.Packet;
 
 namespace Battleship.Server;
 
@@ -38,38 +33,13 @@ public class PacketRouter
         {
             if (_handlers.TryGetValue(packet.Type, out var handler))
             {
-                // ----- Tài khoản (phần của Dũng - 3.2) -----
-                case PacketType.LoginRequest:
-                case PacketType.RegisterRequest:
-                    // TODO (Dũng): đọc LoginRequestDto, xác thực bằng PasswordHelper + AppDbContext,
-                    // gán session.Username, rồi session.SendAsync(LoginResponse/RegisterResponse).
-                    await ReplyNotImplemented(session, packet.Type);
-                    break;
-
-                // ----- Phòng đấu (phần của Đức - 3.4) -----
-                case PacketType.CreateRoomRequest:
-                case PacketType.JoinRoomRequest:
-                case PacketType.LeaveRoom:
-                    // TODO (Đức): dùng _roomManager.CreateRoom/JoinRoom/... rồi phát RoomUpdate.
-                    await ReplyNotImplemented(session, packet.Type);
-                    break;
-
-                // ----- Gameplay (phần của Đức - 4.x) -----
-                case PacketType.PlaceShipsRequest:
-                case PacketType.PlayerReady:
-                case PacketType.FireShotRequest:
-                    // TODO (Đức): logic đặt tàu / sẵn sàng / bắn turn-based trên Server.
-                    await ReplyNotImplemented(session, packet.Type);
-                    break;
-
-                // ----- Chat sảnh: Router xử lý trực tiếp bằng broadcast -----
-                case PacketType.ChatMessage:
-                    await BroadcastAsync(packet);
-                    break;
-
-                default:
-                    Console.WriteLine($"[Router] Chưa định tuyến cho PacketType: {packet.Type} (từ {session.SessionId})");
-                    break;
+                await handler.HandleAsync(session, packet);
+            }
+            else
+            {
+                Console.WriteLine($"[Router] Chưa có handler cho {packet.Type} (từ {session.SessionId})");
+                await session.SendAsync(Packet.Create(PacketType.Error,
+                    new ErrorDto { Message = $"Server chưa hỗ trợ {packet.Type}." }));
             }
         }
         catch (Exception ex)
