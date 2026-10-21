@@ -67,7 +67,18 @@ public class TcpServer
         session.OnPacketReceived += _router.RouteAsync;
 
         // Bắt tay kiểm tra phiên bản giao thức trước khi nhận gói nghiệp vụ.
-        bool accepted = await session.PerformHandshakeAsync(_cts.Token);
+        bool accepted = false;
+        try
+        {
+            accepted = await session.PerformHandshakeAsync(_cts.Token);
+        }
+        catch (Exception ex)
+        {
+            // gói rác / sai khóa AES / đứt mạng lúc bắt tay thì coi như thất bại,
+            // nếu không bắt ở đây thì socket bị bỏ mở mãi
+            Console.WriteLine($"[TcpServer] Lỗi lúc bắt tay ({ex.GetType().Name}): {ex.Message}");
+        }
+
         if (!accepted)
         {
             Console.WriteLine($"[TcpServer] Handshake thất bại -> đóng session {session.SessionId}");
