@@ -47,6 +47,11 @@ public class TcpServer
         // var roomHandler = new RoomHandler(_roomManager, _router);
         // _router.Register(PacketType.CreateRoomRequest, roomHandler);
         // _router.Register(PacketType.JoinRoomRequest,   roomHandler);
+        // Đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick (dùng _roomManager)
+        var roomHandler = new RoomHandler(_roomManager, _router);
+        _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        _router.Register(PacketType.JoinRoomRequest, roomHandler);
+        // Có thể thêm: _router.Register(PacketType.LeaveRoomRequest, roomHandler);
     }
 
     public async Task StartAsync()
