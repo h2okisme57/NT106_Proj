@@ -4,6 +4,15 @@ using System.Threading;
 
 namespace Battleship.Server
 {
+    // HIỆN THỰC STATE MACHINE (Task 2.1)
+    public enum RoomState
+    {
+        WaitingForPlayers, // Đang chờ đủ 2 người
+        PlacementPhase,    // Cả 2 đang xếp tàu
+        ReadyCheck,        // Đang chờ bấm Ready
+        TurnBasedPlay,     // Đang đánh theo lượt
+        GameOver           // Kết thúc
+    }
     public class GameRoom
     {
         public string RoomId { get; private set; }
@@ -11,6 +20,9 @@ namespace Battleship.Server
 
         // Thêm dấu ? để đánh dấu Player2 có thể null khi phòng vừa tạo
         public ClientSession? Player2 { get; private set; }
+
+        // Quản lý trạng thái hiện tại của phòng
+        public RoomState State { get; set; } = RoomState.WaitingForPlayers;
 
         // Đối tượng lock để đảm bảo luồng an toàn (Thread-safe) trong nội bộ phòng
         public readonly object RoomLock = new object();
@@ -25,13 +37,21 @@ namespace Battleship.Server
 
         public void AddPlayer(ClientSession player)
         {
-            if (Player2 == null) Player2 = player;
+            if (Player2 == null)
+            {
+                Player2 = player;
+                // Chuyển State Machine khi đủ người
+                State = RoomState.PlacementPhase;
+            }
         }
-
         public void RemovePlayer(ClientSession player)
         {
             if (Player2 != null && Player2.SessionId == player.SessionId)
+            {
                 Player2 = null;
+                // Lùi State Machine nếu có người thoạt
+                State = RoomState.WaitingForPlayers;
+            }
         }
     }
 
