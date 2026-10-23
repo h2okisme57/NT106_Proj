@@ -32,6 +32,15 @@ public class KickPlayerDto
     public string RoomId { get; set; } = string.Empty;
     public string TargetUsername { get; set; } = string.Empty;
 }
+// Lấy danh sách phòng hiện có trong sảnh chờ.
+public class JoinRoomResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    // Nếu thành công, trả về luôn thông tin phòng mới nhất để Client vẽ giao diện
+    public RoomInfoDto? Room { get; set; }
+}
 
 // Thông tin tóm tắt 1 phòng (dùng cho danh sách phòng và cập nhật phòng).
 public class RoomInfoDto

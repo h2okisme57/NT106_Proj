@@ -34,6 +34,9 @@ public enum PacketType
     MatchmakingCancelRequest,   // Hoàng - 3.6
     MatchFound,                 // Hoàng - 3.6
     OnlineListUpdate,           // Dũng - 3.2 (broadcast Online/Offline)
+    GetFriendsRequest,
+    GetFriendsResponse,
+    JoinRoomResponse,
     Ping,                       // Hoàng - 4.3 (heartbeat)
     Pong                        // Hoàng - 4.3 (heartbeat)
 }
@@ -68,9 +71,14 @@ public class Packet
         if (string.IsNullOrWhiteSpace(Payload))
             return default;
 
+        // BỔ SUNG PHẦN BỊ THIẾU Ở ĐÂY
         return JsonSerializer.Deserialize<T>(Payload, JsonConfig.Options);
     }
 }
+
+
+
+
 
 // Gói lỗi chung, Server trả khi xử lý thất bại / chưa hỗ trợ.
 public class ErrorDto

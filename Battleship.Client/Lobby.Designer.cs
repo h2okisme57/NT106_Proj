@@ -28,12 +28,15 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             btnFindRoom = new Button();
             btnCreateRoom = new Button();
             btnJoinRoom = new Button();
             btnQuit = new Button();
             btnProfile = new Button();
             lblBattleshiptxt = new Label();
+            contextMenuStrip1 = new ContextMenuStrip(components);
+            boxChat = new TextBox();
             SuspendLayout();
             // 
             // btnFindRoom
@@ -99,12 +102,29 @@
             lblBattleshiptxt.TextAlign = ContentAlignment.MiddleCenter;
             lblBattleshiptxt.Click += lblBattleshiptxt_Click;
             // 
+            // contextMenuStrip1
+            // 
+            contextMenuStrip1.ImageScalingSize = new Size(24, 24);
+            contextMenuStrip1.Name = "contextMenuStrip1";
+            contextMenuStrip1.Size = new Size(61, 4);
+            // 
+            // boxChat
+            // 
+            boxChat.BackColor = SystemColors.InactiveCaptionText;
+            boxChat.ForeColor = SystemColors.InactiveBorder;
+            boxChat.Location = new Point(566, 613);
+            boxChat.Name = "boxChat";
+            boxChat.Size = new Size(412, 31);
+            boxChat.TabIndex = 8;
+            boxChat.TextChanged += textBox1_TextChanged;
+            // 
             // Lobby
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.sonia_wisniewska_background_4k;
             BackgroundImageLayout = ImageLayout.Stretch;
+            Controls.Add(boxChat);
             Controls.Add(lblBattleshiptxt);
             Controls.Add(btnProfile);
             Controls.Add(btnQuit);
@@ -112,8 +132,10 @@
             Controls.Add(btnCreateRoom);
             Controls.Add(btnFindRoom);
             Name = "Lobby";
-            Size = new Size(978, 644);
+            Size = new Size(978, 641);
+            Load += Lobby_Load_1;
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
@@ -124,5 +146,7 @@
         private Button btnQuit;
         private Button btnProfile;
         private Label lblBattleshiptxt;
+        private ContextMenuStrip contextMenuStrip1;
+        private TextBox boxChat;
     }
 }

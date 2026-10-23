@@ -1,10 +1,12 @@
+using Battleship.Server.Handlers;
+using Battleship.Shared;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Battleship.Shared;
 
 namespace Battleship.Server;
 
@@ -30,10 +32,21 @@ public class TcpServer
     {
         _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
 
-        // TODO (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
-        //   _router.Register(PacketType.LoginRequest,    new AuthHandler(_router));
-        //   _router.Register(PacketType.RegisterRequest, new AuthHandler(_router));
+        // DONE (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
+        var authHandler = new AuthHandler();
+        _router.Register(PacketType.LoginRequest, authHandler);
+        _router.Register(PacketType.RegisterRequest, authHandler);
 
+        // =========================================================================
+        // ĐĂNG KÝ THÊM HANDLER XỬ LÝ BẠN BÈ (FriendHandler)
+        // =========================================================================
+        var friendHandler = new FriendHandler(_sessions);
+        _router.Register(PacketType.GetFriendsRequest, friendHandler);
+
+        // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
+        // var roomHandler = new RoomHandler(_roomManager, _router);
+        // _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        // _router.Register(PacketType.JoinRoomRequest,   roomHandler);
         // Đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick (dùng _roomManager)
         var roomHandler = new RoomHandler(_roomManager, _router);
         _router.Register(PacketType.CreateRoomRequest, roomHandler);
@@ -86,7 +99,22 @@ public class TcpServer
     {
         _sessions.TryRemove(session.SessionId, out _);
         Console.WriteLine($"[TcpServer] Client {session.SessionId} đã ngắt. Online: {_sessions.Count}");
-        // TODO (Dũng - 3.2): broadcast trạng thái Offline cho các client còn lại.
+        // DONE (Dũng - 3.2): broadcast trạng thái Offline cho các client còn lại.
+        // Chỉ thông báo Offline nếu client này đã đăng nhập thành công trước đó
+        if (session.IsLoggedIn && !string.IsNullOrEmpty(session.Username))
+        {
+            var offlinePacket = new Packet
+            {
+                Type = PacketType.OnlineListUpdate,
+                // Tùy theo DTO bạn định nghĩa ở Shared, ở đây truyền tạm object nặc danh 
+                // chứa Username và Status để báo Client khác gỡ tên khỏi danh sách Online
+                Payload = JsonSerializer.Serialize(new { Username = session.Username, Status = "Offline" })
+            };
+
+            // Dùng fire-and-forget (_) vì hàm này đang là void (đồng bộ)
+            _ = _router.BroadcastAsync(offlinePacket);
+        }
+
         // TODO (Đức - 3.4): nếu session đang trong phòng thì xử lý rời/huỷ phòng.
     }
 

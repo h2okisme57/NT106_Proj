@@ -16,8 +16,10 @@ namespace Battleship.Server
         // Khóa gửi: chặn 2 Task cùng ghi vào 1 stream làm xen kẽ byte của 2 gói.
         private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
 
-        // Tên đăng nhập, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
-        public string? Username { get; set; }
+    // Tên đăng nhập, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
+    public string? Username { get; set; }
+    public int UserId { get; set; }
+    public bool IsLoggedIn { get; set; } = false;
 
         // Delegate báo cho Server biết Client này đã ngắt kết nối
         public event Action<ClientSession>? OnDisconnected;

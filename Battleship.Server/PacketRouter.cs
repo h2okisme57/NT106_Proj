@@ -1,8 +1,9 @@
+using Battleship.Shared;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Battleship.Shared;
+using static Battleship.Shared.Packet;
 
 namespace Battleship.Server;
 

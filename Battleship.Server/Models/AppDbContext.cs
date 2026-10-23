@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Battleship.Server.Models
 {
-    internal class AppDbContext : DbContext
+    public class AppDbContext : DbContext
     {
         public DbSet<User> Users { get; set; }
         public DbSet<Match> Matches { get; set; }
