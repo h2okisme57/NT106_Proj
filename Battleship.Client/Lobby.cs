@@ -223,16 +223,101 @@ namespace Battleship.Client
             }
         }
 
-        private void btnFindRoom_Click(object sender, EventArgs e)
+        private async void btnFindRoom_Click(object sender, EventArgs e)
         {
+            // 1. Kiểm tra đăng nhập
             if (!CheckLogin()) return;
+
+            // 2. Xóa các Panel con đang hiển thị đè lên Lobby
             DeleteAccess();
+
+            // 3. Khởi tạo màn hình RoomWait
+            RoomWait pnlRoomWait = new RoomWait();
+
+            // Căn giữa giao diện RoomWait trong Lobby
+            int centerX = (this.Width - pnlRoomWait.Width) / 2;
+            int centerY = (this.Height - pnlRoomWait.Height) / 2;
+            pnlRoomWait.Location = new Point(centerX, centerY);
+            pnlRoomWait.Name = "pnlRoomWait";
+
+            // Thêm vào Lobby và đưa lên phía trước
+            this.Controls.Add(pnlRoomWait);
+            pnlRoomWait.BringToFront();
+
+            // 4. Báo cho Server biết để tạo phòng mới cho người chơi này ngồi chờ
+            if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
+            {
+                try
+                {
+                    // Gửi DTO tạo phòng lên Server
+                    var createRoomDto = new CreateRoomDto
+                    {
+                        RoomName = $"Phòng của {PlayerProfile.Username}"
+                    };
+
+                    var packet = Packet.Create(PacketType.CreateRoomRequest, createRoomDto);
+                    await NetworkManager.Instance.SendAsync(packet);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Lỗi gửi yêu cầu tạo phòng: {ex.Message}", "Lỗi mạng", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Chưa kết nối đến máy chủ!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
-        private void btnCreateRoom_Click(object sender, EventArgs e)
+        private async void btnCreateRoom_Click(object sender, EventArgs e)
         {
+            // 1. Kiểm tra đăng nhập
             if (!CheckLogin()) return;
+
+            // 2. Xóa các Panel con (như pnlJoin, pnlLogin...) đang hiển thị đè lên Lobby
             DeleteAccess();
+
+            // 3. Khởi tạo và hiển thị màn hình phòng chờ (RoomWait)
+            RoomWait pnlRoomWait = new RoomWait();
+
+            // Căn giữa giao diện RoomWait
+            int centerX = (this.Width - pnlRoomWait.Width) / 2;
+            int centerY = (this.Height - pnlRoomWait.Height) / 2;
+            pnlRoomWait.Location = new Point(centerX, centerY);
+            pnlRoomWait.Name = "pnlRoomWait";
+
+            this.Controls.Add(pnlRoomWait);
+            pnlRoomWait.BringToFront();
+
+            // 4. Gửi yêu cầu Tạo phòng lên Server (Người tạo mặc định sẽ là Host)
+            if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
+            {
+                try
+                {
+                    // Thay PlayerProfile.Username bằng biến lưu tên người dùng hiện tại của bạn
+                    string hostName = "Bạn"; // Gán tạm nếu chưa có biến tĩnh lưu Username
+
+                    var createRoomDto = new CreateRoomDto
+                    {
+                        RoomName = $"Phòng của {hostName}"
+                    };
+
+                    var packet = Packet.Create(PacketType.CreateRoomRequest, createRoomDto);
+                    await NetworkManager.Instance.SendAsync(packet);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Lỗi gửi yêu cầu tạo phòng: {ex.Message}", "Lỗi mạng", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Mất kết nối với máy chủ!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                // Gỡ RoomWait nếu không có mạng
+                this.Controls.Remove(pnlRoomWait);
+                pnlRoomWait.Dispose();
+            }
         }
 
         private void btnJoinRoom_Click(object sender, EventArgs e)

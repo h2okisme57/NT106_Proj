@@ -33,7 +33,6 @@
             // 
             // tableGame
             // 
-            tableGame.Anchor = AnchorStyles.Top;
             tableGame.ColumnCount = 10;
             tableGame.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F));
             tableGame.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10F));
@@ -60,14 +59,13 @@
             tableGame.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
             tableGame.Size = new Size(644, 644);
             tableGame.TabIndex = 0;
-            tableGame.Paint += tableGame_Paint;
             // 
-            // BoardRoom
+            // BoardGame
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(tableGame);
-            Name = "BoardRoom";
+            Name = "BoardGame";
             Size = new Size(644, 644);
             ResumeLayout(false);
         }

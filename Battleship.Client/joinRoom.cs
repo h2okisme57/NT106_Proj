@@ -54,7 +54,7 @@ namespace Battleship.Client
 
             try
             {
-                var packet = Packet.Create(PacketType.GetRoomsRequest, string.Empty);
+                var packet = Packet.Create(PacketType.GetRoomListRequest, string.Empty);
                 await NetworkManager.Instance.SendAsync(packet);
             }
             catch (Exception ex)
@@ -68,7 +68,7 @@ namespace Battleship.Client
         // =========================================================
         private void NetworkManager_OnPacketReceived(Packet packet)
         {
-            if (packet.Type == PacketType.GetRoomsResponse)
+            if (packet.Type == PacketType.GetRoomListResponse)
             {
                 var response = packet.DeserializePayload<RoomListResponseDto>();
 
@@ -86,15 +86,29 @@ namespace Battleship.Client
             }
             else if (packet.Type == PacketType.JoinRoomResponse)
             {
-                var response = packet.DeserializePayload<RoomUpdateDto>();
+                // 1. SỬA LẠI KIỂU DTO: Nhận JoinRoomResponseDto thay vì RoomUpdateDto
+                var response = packet.DeserializePayload<JoinRoomResponseDto>();
 
-                if (response?.Room != null)
+                // Kiểm tra cờ Success thay vì chỉ check Room khác null
+                if (response != null && response.Success && response.Room != null)
                 {
                     this.Invoke(new Action(() =>
                     {
-                        MessageBox.Show($"Vào phòng {response.Room.RoomId} thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        // 2. KHỞI TẠO VÀ HIỂN THỊ MÀN HÌNH ROOMWAIT
+                        RoomWait pnlRoomWait = new RoomWait();
 
-                        // Đóng UserControl joinRoom sau khi vào phòng thành công
+                        if (this.Parent != null)
+                        {
+                            // Căn giữa màn hình RoomWait trên Lobby (Parent)
+                            int centerX = (this.Parent.Width - pnlRoomWait.Width) / 2;
+                            int centerY = (this.Parent.Height - pnlRoomWait.Height) / 2;
+                            pnlRoomWait.Location = new Point(centerX, centerY);
+
+                            this.Parent.Controls.Add(pnlRoomWait);
+                            pnlRoomWait.BringToFront();
+                        }
+
+                        // Xóa màn hình joinRoom hiện tại
                         this.Parent?.Controls.Remove(this);
                         this.Dispose();
                     }));
@@ -103,13 +117,16 @@ namespace Battleship.Client
                 {
                     this.Invoke(new Action(() =>
                     {
-                        MessageBox.Show("Không thể tham gia phòng này!", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        // Hiển thị lý do lỗi từ Server (ví dụ: Phòng đã đầy, Chủ phòng đã thoát...)
+                        string errorMsg = response?.Message ?? "Không thể tham gia phòng này!";
+                        MessageBox.Show(errorMsg, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                        // Làm mới lại danh sách phòng vì dữ liệu hiện tại có thể đã cũ
                         _ = RequestRoomListAsync();
                     }));
                 }
             }
         }
-
         public void ClearRoomList()
         {
             if (pnlJoin.InvokeRequired)
@@ -199,6 +216,8 @@ namespace Battleship.Client
 
             pnlJoin.Controls.Add(card);
         }
+
+
 
         private void button1_Click(object sender, EventArgs e)
         {
