@@ -18,7 +18,7 @@ namespace Battleship.Server
 
     // Tên đăng nhập, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
     public string? Username { get; set; }
-    public int UserId { get; set; }
+    public string UserId { get; set; } = "";   // string cho khớp User.Id
     public bool IsLoggedIn { get; set; } = false;
 
         // Delegate báo cho Server biết Client này đã ngắt kết nối

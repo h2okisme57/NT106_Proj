@@ -13,7 +13,7 @@ namespace Battleship.Client.Models
         public int MatchId { get; set; }
         public Match Match { get; set; }
 
-        public int PlayerId { get; set; }
+        public string PlayerId { get; set; }   // cùng kiểu với User.Id (string)
         public User Player { get; set; }
 
         public int X_Coordinate { get; set; }
