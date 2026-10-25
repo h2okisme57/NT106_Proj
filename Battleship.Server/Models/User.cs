@@ -8,7 +8,8 @@ namespace Battleship.Client.Models
 {
     public class User
     {
-        public string Id { get; set; }
+        // Id kiểu string nên EF không tự sinh giá trị, phải tự gán (dùng Guid cho không trùng)
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
         public bool Condition { get; set; } = false;
         public string Username { get; set; }
         public string Password { get; set; }

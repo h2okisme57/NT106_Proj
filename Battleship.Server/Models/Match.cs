@@ -10,13 +10,14 @@ namespace Battleship.Client.Models
     {
         public int Id { get; set; }
 
-        public int Player1Id { get; set; }
+        // Khóa ngoại phải cùng kiểu với User.Id (string)
+        public string Player1Id { get; set; }
         public User Player1 { get; set; }
 
-        public int? Player2Id { get; set; }
+        public string? Player2Id { get; set; }
         public User Player2 { get; set; }
 
-        public int? WinnerId { get; set; }
+        public string? WinnerId { get; set; }
         public User Winner { get; set; }
 
         public DateTime StartTime { get; set; } = DateTime.Now;
