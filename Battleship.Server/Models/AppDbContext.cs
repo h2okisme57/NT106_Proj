@@ -14,9 +14,39 @@ namespace Battleship.Server.Models
         public DbSet<Match> Matches { get; set; }
         public DbSet<MatchDetail> MatchDetails { get; set; }
 
+        // Chọn loại DB bằng biến môi trường BATTLESHIP_DB:
+        //   "sqlite"   (mặc định) -> file battleship.db ở máy
+        //   "supabase" -> PostgreSQL trên Supabase, chuỗi kết nối lấy từ SUPABASE_DB_CONNECTION
+        // Mất mạng thì chỉ cần đổi lại thành sqlite là chạy offline, không phải sửa code.
+        public static bool UseSupabase =>
+            string.Equals(Environment.GetEnvironmentVariable("BATTLESHIP_DB"), "supabase",
+                          StringComparison.OrdinalIgnoreCase);
+
+        public static string ProviderName => UseSupabase ? "Supabase (PostgreSQL)" : "SQLite (battleship.db)";
+
+        static AppDbContext()
+        {
+            // Npgsql mặc định chỉ nhận DateTime kiểu UTC, mà model đang dùng DateTime.Now.
+            // Bật chế độ cũ để khỏi bị lỗi khi lưu thời gian trận đấu.
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+        }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlite("Data Source=battleship.db");
+            if (UseSupabase)
+            {
+                string? conn = Environment.GetEnvironmentVariable("SUPABASE_DB_CONNECTION");
+                if (string.IsNullOrWhiteSpace(conn))
+                {
+                    throw new InvalidOperationException(
+                        "Đang chọn Supabase nhưng chưa đặt biến môi trường SUPABASE_DB_CONNECTION.");
+                }
+                optionsBuilder.UseNpgsql(conn);
+            }
+            else
+            {
+                optionsBuilder.UseSqlite("Data Source=battleship.db");
+            }
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
