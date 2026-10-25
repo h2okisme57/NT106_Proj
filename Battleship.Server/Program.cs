@@ -8,10 +8,7 @@ const int Port = 8000; // Cổng server theo TinhNang-CongNghe (Load Balancer Po
 Console.WriteLine("[DB] Đang dùng: " + AppDbContext.ProviderName);
 try
 {
-    using (var db = new AppDbContext())
-    {
-        db.Database.EnsureCreated();
-    }
+    AppDbContext.EnsureDatabaseReady();
     Console.WriteLine("[DB] Kết nối và kiểm tra bảng thành công.");
 }
 catch (Exception ex)
