@@ -98,6 +98,7 @@ public class TcpServer
     private void OnSessionDisconnected(ClientSession session)
     {
         _sessions.TryRemove(session.SessionId, out _);
+        OnlineUsers.Remove(session);   // trả tên đăng nhập để lần sau đăng nhập lại được
         Console.WriteLine($"[TcpServer] Client {session.SessionId} đã ngắt. Online: {_sessions.Count}");
         // DONE (Dũng - 3.2): broadcast trạng thái Offline cho các client còn lại.
         // Chỉ thông báo Offline nếu client này đã đăng nhập thành công trước đó
