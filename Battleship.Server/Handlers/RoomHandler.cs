@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Battleship.Shared;
-using Battleship.Shared.Dtos;
+using Battleship.Shared; // Đã giữ nguyên dòng này và không dùng .Dtos thừa ở dòng 5
 
 namespace Battleship.Server.Handlers
 {
@@ -93,11 +92,10 @@ namespace Battleship.Server.Handlers
 
             var updateDto = new RoomUpdateDto
             {
-                // Nếu vào thất bại hoặc không tìm thấy phòng thì Room == null
                 Room = room != null ? ToRoomInfoDto(room) : null
             };
 
-            // Trả JoinRoomResponse về cho Client vừa bấm Join (khớp với joinRoom.cs)
+            // Trả JoinRoomResponse về cho Client vừa bấm Join
             await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, updateDto));
 
             // Nếu vào thành công, gửi thêm RoomUpdate cho chủ phòng (Host) để cập nhật UI
@@ -133,16 +131,18 @@ namespace Battleship.Server.Handlers
             }
         }
 
-        // Hàm ánh xạ từ GameRoom sang RoomInfoDto của Shared
+        // Hàm ánh xạ từ GameRoom sang RoomInfoDto đã được sửa theo đúng thuộc tính của Shared DTO
         private static RoomInfoDto ToRoomInfoDto(GameRoom room)
         {
             return new RoomInfoDto
             {
                 RoomId = room.RoomId,
-                HostUsername = room.Host.Username ?? room.Host.SessionId,
-                GuestUsername = room.Player2 != null ? (room.Player2.Username ?? room.Player2.SessionId) : null,
-                PlayerCount = room.IsFull ? 2 : 1,
-                IsFull = room.IsFull
+                RoomName = room.RoomId,
+                HostName = room.Host.Username ?? room.Host.SessionId,
+                GuestName = room.Player2 != null ? (room.Player2.Username ?? room.Player2.SessionId) : null,
+                State = room.State == RoomState.WaitingForPlayers
+                    ? Battleship.Shared.RoomState.Waiting
+                    : Battleship.Shared.RoomState.Playing
             };
         }
     }

@@ -50,7 +50,7 @@ public class TcpServer
         _router.Register(PacketType.JoinRoomRequest, roomHandler);
         _router.Register(PacketType.LeaveRoom, roomHandler); //note! :Chưa có KickPlayer
 
-        var roomHandler = new RoomHandler(_roomManager, _router);
+        roomHandler = new RoomHandler(_roomManager, _router);
         _router.Register(PacketType.CreateRoomRequest, roomHandler);
         _router.Register(PacketType.JoinRoomRequest, roomHandler);
         // Có thể thêm: _router.Register(PacketType.LeaveRoomRequest, roomHandler);
