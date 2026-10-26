@@ -44,10 +44,12 @@ public class TcpServer
         _router.Register(PacketType.GetFriendsRequest, friendHandler);
 
         // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
-        // var roomHandler = new RoomHandler(_roomManager, _router);
-        // _router.Register(PacketType.CreateRoomRequest, roomHandler);
-        // _router.Register(PacketType.JoinRoomRequest,   roomHandler);
-        // Đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick (dùng _roomManager)
+        var roomHandler = new RoomHandler(_roomManager, _router);
+        _router.Register(PacketType.GetRoomListRequest, roomHandler);
+        _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        _router.Register(PacketType.JoinRoomRequest, roomHandler);
+        _router.Register(PacketType.LeaveRoom, roomHandler); //note! :Chưa có KickPlayer
+
         var roomHandler = new RoomHandler(_roomManager, _router);
         _router.Register(PacketType.CreateRoomRequest, roomHandler);
         _router.Register(PacketType.JoinRoomRequest, roomHandler);
