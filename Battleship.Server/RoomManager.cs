@@ -111,5 +111,37 @@ namespace Battleship.Server
             }
             return false;
         }
+        public GameRoom? GetRoom(string roomId)
+        {
+            _rooms.TryGetValue(roomId, out var room);
+            return room;
+        }
+
+        public bool LeaveRoom(string roomId, ClientSession session)
+        {
+            if (_rooms.TryGetValue(roomId, out var room))
+            {
+                lock (room.RoomLock)
+                {
+                    // Nếu Host thoát -> Giải tán phòng luôn
+                    if (room.Host.SessionId == session.SessionId)
+                    {
+                        _rooms.TryRemove(roomId, out _);
+                        Console.WriteLine($"[RoomManager] Host {session.SessionId} rời đi -> Đã giải tán phòng {roomId}");
+                        return true;
+                    }
+                    // Nếu Player2 thoát -> Xóa Player2 khỏi phòng
+                    if (room.Player2 != null && room.Player2.SessionId == session.SessionId)
+                    {
+                        room.RemovePlayer(session);
+                        Console.WriteLine($"[RoomManager] Player2 {session.SessionId} đã rời phòng {roomId}");
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public List<GameRoom> GetAllRooms() => _rooms.Values.ToList();
     }
 }
