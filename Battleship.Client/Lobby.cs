@@ -361,9 +361,29 @@ namespace Battleship.Client
             Application.Exit();
         }
 
+        private void btnLeaderBoard_Click_1(object sender, EventArgs e)
+        {
+            if (!CheckLogin()) return;
+            DeleteAccess();
+
+            // Khởi tạo form bảng xếp hạng
+            frmLeaderboard leaderboardForm = new frmLeaderboard();
+
+            // Sử dụng ShowDialog() để hiển thị form lên trên cùng 
+            // Người dùng phải đóng form này mới thao tác tiếp được với Lobby
+            leaderboardForm.ShowDialog();
+        }
+
         private void lblBattleshiptxt_Click(object sender, EventArgs e) { }
         private void richTextBox1_TextChanged(object sender, EventArgs e) { }
         private void textBox1_TextChanged(object sender, EventArgs e) { }
         private void Lobby_Load_1(object sender, EventArgs e) { }
+
+        private void btnLeaderboard_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        
     }
 }

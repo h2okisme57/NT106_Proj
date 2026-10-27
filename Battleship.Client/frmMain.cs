@@ -22,8 +22,8 @@ public partial class frmMain : Form
     // Khi Form Main vừa mở lên, tự động hiển thị màn hình Login
     private void frmMain_Load(object sender, EventArgs e)
     {
-        //SwitchView(new Lobby());
-        TestBoardGame();
+        SwitchView(new Lobby());
+        //TestBoardGame();
     }
 
     public void TestBoardGame()
