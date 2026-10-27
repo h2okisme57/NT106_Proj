@@ -267,6 +267,28 @@
   \footnotesize Client C\# gọi bằng \texttt{HttpClient} và hiển thị lên \texttt{ListView} \textbf{Bảng xếp hạng}.
 \end{frame}
 
+\begin{frame}{Cơ Chế Đăng Nhập An Toàn}
+  \footnotesize
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabularx}{\textwidth}{@{}Y Y@{}}
+    \toprule
+    \textbf{Nguy cơ} & \textbf{Cách phòng thủ} \\
+    \midrule
+    Gửi gói tin khi chưa đăng nhập & Router \textbf{chặn} mọi gói, trừ Handshake/Login/Register \\
+    Dò mật khẩu hàng loạt & \textbf{Khóa 60 giây} sau 5 lần sai (theo IP và theo tài khoản) \\
+    Dữ liệu đầu vào xấu & Kiểm tra tên 3--20 ký tự, mật khẩu 6--64 ký tự \\
+    Một tài khoản đăng nhập nhiều nơi & Mỗi tài khoản \textbf{một phiên} tại một thời điểm \\
+    Giả mạo \textit{Admin} và \textit{admin} & So sánh tên \textbf{không phân biệt hoa thường} \\
+    Đoán tên tài khoản qua thời gian trả lời & Luôn chạy BCrypt, thông báo lỗi \textbf{chung chung} \\
+    Lộ mật khẩu khi lưu trữ & Chỉ lưu chuỗi băm \textbf{BCrypt} (có muối) \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.15cm}
+  \begin{exampleblock}{Kiểm thử}
+    \footnotesize 19 kịch bản tấn công qua TCP, chạy trên server thật: \textbf{đều đạt}.
+  \end{exampleblock}
+\end{frame}
+
 \begin{frame}{Bảo Mật Dữ Liệu}
   \begin{block}{Nhiều lớp bảo vệ}
     \begin{itemize}
@@ -343,6 +365,7 @@
   \begin{block}{Những gì đạt được}
     \begin{itemize}
       \item Game dùng \textbf{raw socket TCP} với giao thức tự thiết kế, mã hóa \textbf{AES-128}.
+      \item \textbf{Đăng nhập an toàn:} BCrypt, chặn gói khi chưa đăng nhập, khóa khi dò mật khẩu.
       \item Dữ liệu lưu được trên \textbf{Supabase (PostgreSQL)} qua EF Core.
       \item Có \textbf{web service REST} để truy vấn bảng xếp hạng từ bên ngoài.
       \item Vẫn chạy được \textbf{offline} nhờ SQLite dự phòng.
