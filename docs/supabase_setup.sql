@@ -43,7 +43,10 @@ GRANT SELECT ON public.leaderboard TO anon, authenticated;
 -- user seed này KHÔNG đăng nhập được; chỉ để bảng xếp hạng có dữ liệu.
 -- Muốn đăng nhập thì đăng ký bằng game để BCrypt tạo hash thật.
 -- ============================================================
--- INSERT INTO "Users" ("Username","Password","Wins","Losses","Score") VALUES
---   ('admiral_a', 'seed-not-a-real-hash', 12, 3, 1200),
---   ('captain_b', 'seed-not-a-real-hash',  9, 5,  900),
---   ('sailor_c',  'seed-not-a-real-hash',  4, 8,  400);
+-- Lưu ý: cột "Id" (text) và "Condition" (boolean) là NOT NULL và KHÔNG có giá trị mặc định
+-- ở phía DB (Id do code C# tự sinh Guid), nên khi INSERT tay phải điền cả hai.
+-- INSERT INTO "Users" ("Id","Condition","Username","Password","Wins","Losses","Score") VALUES
+--   ('seed-0001', false, 'admiral_a', 'seed-not-a-real-hash', 12, 3, 1200),
+--   ('seed-0002', false, 'captain_b', 'seed-not-a-real-hash',  9, 5,  900),
+--   ('seed-0003', false, 'sailor_c',  'seed-not-a-real-hash',  4, 8,  400);
+-- Dọn dữ liệu mẫu sau demo:  DELETE FROM "Users" WHERE "Id" LIKE 'seed-%';

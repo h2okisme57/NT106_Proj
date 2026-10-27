@@ -44,11 +44,13 @@ public class TcpServer
         _router.Register(PacketType.GetFriendsRequest, friendHandler);
 
         // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
-        // var roomHandler = new RoomHandler(_roomManager, _router);
-        // _router.Register(PacketType.CreateRoomRequest, roomHandler);
-        // _router.Register(PacketType.JoinRoomRequest,   roomHandler);
-        // Đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick (dùng _roomManager)
         var roomHandler = new RoomHandler(_roomManager, _router);
+        _router.Register(PacketType.GetRoomListRequest, roomHandler);
+        _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        _router.Register(PacketType.JoinRoomRequest, roomHandler);
+        _router.Register(PacketType.LeaveRoom, roomHandler); //note! :Chưa có KickPlayer
+
+        roomHandler = new RoomHandler(_roomManager, _router);
         _router.Register(PacketType.CreateRoomRequest, roomHandler);
         _router.Register(PacketType.JoinRoomRequest, roomHandler);
         // Có thể thêm: _router.Register(PacketType.LeaveRoomRequest, roomHandler);
@@ -81,7 +83,18 @@ public class TcpServer
         session.OnPacketReceived += _router.RouteAsync;
 
         // Bắt tay kiểm tra phiên bản giao thức trước khi nhận gói nghiệp vụ.
-        bool accepted = await session.PerformHandshakeAsync(_cts.Token);
+        bool accepted = false;
+        try
+        {
+            accepted = await session.PerformHandshakeAsync(_cts.Token);
+        }
+        catch (Exception ex)
+        {
+            // gói rác / sai khóa AES / đứt mạng lúc bắt tay thì coi như thất bại,
+            // nếu không bắt ở đây thì socket bị bỏ mở mãi
+            Console.WriteLine($"[TcpServer] Lỗi lúc bắt tay ({ex.GetType().Name}): {ex.Message}");
+        }
+
         if (!accepted)
         {
             Console.WriteLine($"[TcpServer] Handshake thất bại -> đóng session {session.SessionId}");

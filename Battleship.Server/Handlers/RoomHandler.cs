@@ -1,27 +1,31 @@
 ﻿using System;
-using System.Text.Json;
+using System.Linq;
 using System.Threading.Tasks;
-using Battleship.Shared; // Namespace chứa IPacketHandler, Packet, PacketType và các DTOs
+using Battleship.Shared; // Đã giữ nguyên dòng này và không dùng .Dtos thừa ở dòng 5
 
 namespace Battleship.Server.Handlers
 {
-    // Kế thừa chính thức IPacketHandler để PacketRouter tự động nhận diện
     public class RoomHandler : IPacketHandler
     {
         private readonly RoomManager _roomManager;
-        private readonly PacketRouter _router; // Bổ sung biến _router
+        private readonly PacketRouter _router;
 
-        // Khớp 100% với hàm khởi tạo bên TcpServer.cs
-        public RoomHandler(RoomManager roomManager)
+        // Constructor đúng chuẩn (RoomManager, PacketRouter)
+        public RoomHandler(RoomManager roomManager, PacketRouter router)
         {
             _roomManager = roomManager;
+            _router = router;
         }
 
-        // Hàm điều hướng gói tin liên quan đến Phòng (Room)
-        public async Task HandlePacketAsync(ClientSession session, Packet packet)
+        // Tên hàm chuẩn theo interface IPacketHandler
+        public async Task HandleAsync(ClientSession session, Packet packet)
         {
             switch (packet.Type)
             {
+                case PacketType.GetRoomListRequest:
+                    await HandleGetRoomListAsync(session);
+                    break;
+
                 case PacketType.CreateRoomRequest:
                     await HandleCreateRoomAsync(session, packet);
                     break;
@@ -30,127 +34,116 @@ namespace Battleship.Server.Handlers
                     await HandleJoinRoomAsync(session, packet);
                     break;
 
-                case PacketType.LeaveRoomRequest:
+                case PacketType.LeaveRoom:
                     await HandleLeaveRoomAsync(session, packet);
                     break;
 
                 default:
-                    // Log cảnh báo nếu Router gửi nhầm gói tin không thuộc phạm vi xử lý
-                    Console.WriteLine($"[RoomHandler] Không hỗ trợ loại gói tin: {packet.Type}");
+                    Console.WriteLine($"[RoomHandler] Không hỗ trợ gói tin: {packet.Type}");
                     break;
             }
         }
 
+        // 1. Client gửi GetRoomListRequest -> Server trả GetRoomListResponse chứa RoomListResponseDto
+        private async Task HandleGetRoomListAsync(ClientSession session)
+        {
+            var rooms = _roomManager.GetAllRooms()
+                .Select(ToRoomInfoDto)
+                .ToList();
+
+            var responseDto = new RoomListResponseDto
+            {
+                Rooms = rooms
+            };
+
+            await session.SendAsync(Packet.Create(PacketType.GetRoomListResponse, responseDto));
+        }
+
+        // 2. Tạo phòng mới
         private async Task HandleCreateRoomAsync(ClientSession session, Packet packet)
         {
-            var req = JsonSerializer.Deserialize<CreateRoomRequest>(packet.JsonPayload);
-            if (req == null) return;
+            var dto = packet.DeserializePayload<CreateRoomDto>();
+            string roomId = (dto != null && !string.IsNullOrWhiteSpace(dto.RoomId))
+                ? dto.RoomId
+                : Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
 
-            // Xử lý tạo phòng qua RoomManager
-            var room = _roomManager.CreateRoom(req.RoomId, session);
-            bool success = room != null;
+            var room = _roomManager.CreateRoom(roomId, session);
 
-            // Phản hồi kết quả tạo phòng về cho Client gửi yêu cầu
-            var response = new CreateRoomResponse
+            var updateDto = new RoomUpdateDto
             {
-                IsSuccess = success,
-                RoomId = req.RoomId
+                Room = room != null ? ToRoomInfoDto(room) : null
             };
 
-            var responsePacket = new Packet
-            {
-                Type = PacketType.CreateRoomResponse,
-                JsonPayload = JsonSerializer.Serialize(response)
-            };
-
-            await session.SendAsync(responsePacket);
+            await session.SendAsync(Packet.Create(PacketType.RoomUpdate, updateDto));
         }
 
+        // 3. Client gửi JoinRoomRequest (JoinRoomDto) -> Server trả JoinRoomResponse chứa RoomUpdateDto (Room == null là thất bại)
         private async Task HandleJoinRoomAsync(ClientSession session, Packet packet)
         {
-            var req = JsonSerializer.Deserialize<JoinRoomRequest>(packet.JsonPayload);
-            if (req == null) return;
-
-            // Xử lý vào phòng qua RoomManager
-            bool success = _roomManager.JoinRoom(req.RoomId, session);
-
-            // Phản hồi kết quả vào phòng về cho người xin vào
-            var response = new JoinRoomResponse
+            var dto = packet.DeserializePayload<JoinRoomDto>();
+            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
             {
-                IsSuccess = success,
-                RoomId = req.RoomId
+                await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, new RoomUpdateDto { Room = null }));
+                return;
+            }
+
+            bool joined = _roomManager.JoinRoom(dto.RoomId, session);
+            var room = joined ? _roomManager.GetRoom(dto.RoomId) : null;
+
+            var updateDto = new RoomUpdateDto
+            {
+                Room = room != null ? ToRoomInfoDto(room) : null
             };
 
-            var responsePacket = new Packet
-            {
-                Type = PacketType.JoinRoomResponse,
-                JsonPayload = JsonSerializer.Serialize(response)
-            };
+            // Trả JoinRoomResponse về cho Client vừa bấm Join
+            await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, updateDto));
 
-            await session.SendAsync(responsePacket);
-
-            // Nếu vào phòng thành công, cập nhật và đồng bộ trạng thái mới cho toàn bộ người trong phòng
-            if (success)
+            // Nếu vào thành công, gửi thêm RoomUpdate cho chủ phòng (Host) để cập nhật UI
+            if (joined && room != null)
             {
-                await BroadcastRoomUpdateAsync(req.RoomId, $"{session.PlayerName} đã tham gia phòng!");
+                await room.Host.SendAsync(Packet.Create(PacketType.RoomUpdate, updateDto));
             }
         }
 
+        // 4. Rời phòng
         private async Task HandleLeaveRoomAsync(ClientSession session, Packet packet)
         {
-            var req = JsonSerializer.Deserialize<LeaveRoomRequest>(packet.JsonPayload);
-            if (req == null) return;
+            var dto = packet.DeserializePayload<LeaveRoomDto>();
+            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId)) return;
 
-            // Gọi RoomManager để xử lý logic rời phòng (Kiểm tra xem người rời là Host hay Player2)
-            bool success = _roomManager.LeaveRoom(req.RoomId, session);
-            if (!success) return;
+            var room = _roomManager.GetRoom(dto.RoomId);
+            ClientSession? otherPlayer = null;
 
-            // Lấy thông tin phòng sau khi có người rời để quyết định hành động tiếp theo
-            var room = _roomManager.GetRoom(req.RoomId);
-
-            if (room == null)
+            if (room != null)
             {
-                // Nếu phòng đã bị giải tán (ví dụ do Host thoát) -> Không cần broadcast nữa
-                Console.WriteLine($"[RoomHandler] Phòng {req.RoomId} đã được giải tán thành công.");
+                otherPlayer = (room.Host.SessionId == session.SessionId) ? room.Player2 : room.Host;
             }
-            else
+
+            bool left = _roomManager.LeaveRoom(dto.RoomId, session);
+            if (left && otherPlayer != null)
             {
-                // Nếu phòng vẫn tồn tại (ví dụ Player2 thoát, Host ở lại) -> Cập nhật tình hình cho Host biết
-                await BroadcastRoomUpdateAsync(req.RoomId, $"{session.PlayerName} đã rời phòng.");
+                var updatedRoom = _roomManager.GetRoom(dto.RoomId);
+                var updateDto = new RoomUpdateDto
+                {
+                    Room = updatedRoom != null ? ToRoomInfoDto(updatedRoom) : null
+                };
+                await otherPlayer.SendAsync(Packet.Create(PacketType.RoomUpdate, updateDto));
             }
         }
 
-        // Hàm tiện ích để đồng bộ trạng thái phòng (RoomUpdate) cho tất cả các bên liên quan
-        private async Task BroadcastRoomUpdateAsync(string roomId, string notificationMessage)
+        // Hàm ánh xạ từ GameRoom sang RoomInfoDto đã được sửa theo đúng thuộc tính của Shared DTO
+        private static RoomInfoDto ToRoomInfoDto(GameRoom room)
         {
-            var room = _roomManager.GetRoom(roomId);
-            if (room == null) return;
-
-            // Chuẩn bị dữ liệu cập nhật (gồm thông báo chữ và State hiện tại của phòng từ Server)
-            var updateData = new RoomUpdateResponse
+            return new RoomInfoDto
             {
-                RoomId = roomId,
-                Message = notificationMessage,
-                State = room.State // Gửi kèm State (Waiting, Ready, Playing...) để Client cập nhật UI chính xác
+                RoomId = room.RoomId,
+                RoomName = room.RoomId,
+                HostName = room.Host.Username ?? room.Host.SessionId,
+                GuestName = room.Player2 != null ? (room.Player2.Username ?? room.Player2.SessionId) : null,
+                State = room.State == RoomState.WaitingForPlayers
+                    ? Battleship.Shared.RoomState.Waiting
+                    : Battleship.Shared.RoomState.Playing
             };
-
-            var updatePacket = new Packet
-            {
-                Type = PacketType.RoomUpdateResponse,
-                JsonPayload = JsonSerializer.Serialize(updateData)
-            };
-
-            // Gửi cho Host (nếu có)
-            if (room.HostSession != null)
-            {
-                await room.HostSession.SendAsync(updatePacket);
-            }
-
-            // Gửi cho Player 2 (nếu có)
-            if (room.Player2Session != null)
-            {
-                await room.Player2Session.SendAsync(updatePacket);
-            }
         }
     }
 }

@@ -54,7 +54,7 @@ namespace Battleship.Client
 
             try
             {
-                var packet = Packet.Create(PacketType.GetRoomsRequest, string.Empty);
+                var packet = Packet.Create(PacketType.GetRoomListRequest, string.Empty);
                 await NetworkManager.Instance.SendAsync(packet);
             }
             catch (Exception ex)
@@ -68,7 +68,7 @@ namespace Battleship.Client
         // =========================================================
         private void NetworkManager_OnPacketReceived(Packet packet)
         {
-            if (packet.Type == PacketType.GetRoomsResponse)
+            if (packet.Type == PacketType.GetRoomListResponse)
             {
                 var response = packet.DeserializePayload<RoomListResponseDto>();
 
