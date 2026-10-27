@@ -10,11 +10,12 @@ public static class PacketFraming
 {
     private const int MaxPacketSize = 10 * 1024 * 1024; // 10MB tối đa
 
-    // Gửi gói tin qua NetworkStream: 4 bytes length + json body
+    // Gửi gói tin qua NetworkStream: 4 bytes length + body (json đã mã hóa AES, xem CryptoHelper).
+    // Lưu ý: length là độ dài của body SAU khi mã hóa.
     public static void SendPacket(NetworkStream stream, Packet packet)
     {
         string json = JsonSerializer.Serialize(packet, JsonConfig.Options);
-        byte[] body = Encoding.UTF8.GetBytes(json);
+        byte[] body = CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(json)); // mã hóa AES trước khi gửi
         byte[] lengthHeader = BitConverter.GetBytes(body.Length);
 
         if (BitConverter.IsLittleEndian)
@@ -43,7 +44,7 @@ public static class PacketFraming
         if (!ReadExact(stream, body, 0, packetLength))
             return null;
 
-        string json = Encoding.UTF8.GetString(body);
+        string json = Encoding.UTF8.GetString(CryptoHelper.Decrypt(body)); // giải mã AES rồi mới parse JSON
         return JsonSerializer.Deserialize<Packet>(json, JsonConfig.Options);
     }
 
@@ -69,7 +70,7 @@ public static class PacketFraming
     public static async Task SendPacketAsync(NetworkStream stream, Packet packet, CancellationToken ct = default)
     {
         string json = JsonSerializer.Serialize(packet, JsonConfig.Options);
-        byte[] body = Encoding.UTF8.GetBytes(json);
+        byte[] body = CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(json)); // mã hóa AES trước khi gửi
         byte[] lengthHeader = BitConverter.GetBytes(body.Length);
 
         if (BitConverter.IsLittleEndian)
@@ -101,7 +102,7 @@ public static class PacketFraming
         if (!await ReadExactAsync(stream, body, packetLength, ct))
             return null;
 
-        string json = Encoding.UTF8.GetString(body);
+        string json = Encoding.UTF8.GetString(CryptoHelper.Decrypt(body)); // giải mã AES rồi mới parse JSON
         return JsonSerializer.Deserialize<Packet>(json, JsonConfig.Options);
     }
 
