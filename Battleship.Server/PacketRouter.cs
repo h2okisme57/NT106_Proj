@@ -27,10 +27,30 @@ public class PacketRouter
         _handlers[type] = handler;
     }
 
+    // Những loại gói mà người CHƯA đăng nhập cũng được gửi. Còn lại bắt buộc phải đăng nhập.
+    private static readonly HashSet<PacketType> PublicTypes = new HashSet<PacketType>
+    {
+        PacketType.Handshake,
+        PacketType.LoginRequest,
+        PacketType.RegisterRequest,
+        PacketType.Ping,
+        PacketType.Pong
+    };
+
     public async Task RouteAsync(ClientSession session, Packet packet)
     {
         try
         {
+            // Chưa đăng nhập mà đòi chat, tạo phòng, vào phòng... thì chặn luôn.
+            // Làm ở đây một chỗ nên handler của Đức/Dũng không phải tự kiểm tra từng cái.
+            if (!session.IsLoggedIn && !PublicTypes.Contains(packet.Type))
+            {
+                Console.WriteLine($"[Router] Chặn {packet.Type} từ session chưa đăng nhập {session.SessionId}");
+                await session.SendAsync(Packet.Create(PacketType.Error,
+                    new ErrorDto { Message = "Bạn cần đăng nhập trước." }));
+                return;
+            }
+
             if (_handlers.TryGetValue(packet.Type, out var handler))
             {
                 await handler.HandleAsync(session, packet);
