@@ -1,0 +1,41 @@
+% PHẦN CỦA HOÀNG: Tổng quan đồ án. (Đức và Dũng KHÔNG sửa file này)
+% =====================================================
+\section{Tổng Quan Đồ Án}
+
+\begin{frame}{Đồ Án Battleship Là Gì?}
+  \begin{block}{Trò chơi bắn tàu nhiều người chơi, theo lượt}
+    \begin{itemize}
+      \item Đăng ký, đăng nhập, danh sách \textbf{Online/Offline}, chat sảnh.
+      \item \textbf{Tạo phòng} bằng ID, ghép trận tự động (\textbf{Matchmaking}).
+      \item Xếp tàu trên lưới $10\times10$, bắn theo lượt, \textbf{Server là bên quyết định} Hit/Miss.
+      \item Lưu lịch sử đấu, thắng/thua và điểm xếp hạng.
+    \end{itemize}
+  \end{block}
+  \begin{exampleblock}{Công nghệ cốt lõi của môn NT106}
+    C\# .NET 8 $\cdot$ \texttt{TcpListener/TcpClient} $\cdot$ async/await $\cdot$ framing 4-byte $\cdot$ JSON $\cdot$ AES-128 $\cdot$ BCrypt $\cdot$ EF Core
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}{Tình Trạng Trước Khi Thêm Cloud}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Đã có}
+        \begin{itemize}
+          \item TCP Server bất đồng bộ + \textbf{PacketRouter} đăng ký handler.
+          \item Giao thức: framing 4-byte + \textbf{Handshake} kiểm tra phiên bản.
+          \item \textbf{Mã hóa AES-128} toàn bộ gói tin.
+          \item Đăng nhập/đăng ký với mật khẩu băm \textbf{BCrypt}.
+          \item Dữ liệu lưu \textbf{SQLite} cục bộ qua EF Core.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{alertblock}{Hạn chế cần giải quyết}
+        \begin{itemize}
+          \item Dữ liệu nằm trên \textbf{một máy}, chưa dùng chung.
+          \item Chưa có \textbf{web service} để truy vấn dữ liệu từ bên ngoài.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}

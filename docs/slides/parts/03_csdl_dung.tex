@@ -1,0 +1,89 @@
+% ============================================================
+% PHẦN CỦA DŨNG: CƠ SỞ DỮ LIỆU VÀ GIAO DIỆN  (4 slide)
+% ------------------------------------------------------------
+% CÁCH LÀM:
+%  1. CHỈ sửa file này (parts/03_csdl_dung.tex) và bỏ ảnh vào thư mục images/.
+%     Đừng sửa slide_demo.tex hay file của người khác (tránh conflict).
+%  2. Nội dung bên dưới là BẢN NHÁP do Hoàng soạn từ code. Dũng đọc, SỬA CHO ĐÚNG với code
+%     của mình, xóa ý nào không đúng. Chỗ có dấu  %%% DŨNG KIỂM TRA  là chỗ cần xem kỹ.
+%  3. Ảnh: xem docs/slides/images/README.md, đặt đúng TÊN FILE như khung xám ghi.
+%     Chưa có ảnh thì khung xám vẫn hiện, biên dịch vẫn chạy.
+%  4. Mỗi slide ~ 40 giây khi nói. Chữ ngắn gọn, mỗi ý 1 dòng, đừng viết cả đoạn văn.
+%  5. Chỉ ghi những gì ĐÃ LÀM THẬT. Chưa làm thì ghi rõ "đang phát triển".
+% ============================================================
+\section{Cơ Sở Dữ Liệu Và Giao Diện}
+
+% ---------- Slide 1: ERD ----------
+\begin{frame}{Mô Hình Dữ Liệu (ERD)}
+  \centering
+  \begin{tikzpicture}[
+    ent/.style={draw=inkblue, fill=white, rounded corners=2pt, thick, align=left,
+                font=\scriptsize, inner sep=5pt},
+    arr/.style={thick, color=brandblue}]
+    \node[ent] (u) at (0,0)    {\textbf{Users}\\[2pt]\underline{Id} (PK)\\Username (UNIQUE)\\Password (BCrypt)\\Wins, Losses, Score\\Condition};
+    \node[ent] (m) at (5.4,0)  {\textbf{Matches}\\[2pt]\underline{Id} (PK)\\Player1Id (FK)\\Player2Id (FK)\\WinnerId (FK)\\StartTime, EndTime};
+    \node[ent] (d) at (10.8,0) {\textbf{MatchDetails}\\[2pt]\underline{Id} (PK)\\MatchId (FK)\\PlayerId (FK)\\X\_Coordinate, Y\_Coordinate\\IsHit, TurnTime};
+
+    \draw[arr] (u) -- node[above,font=\scriptsize]{1 -- N} (m);
+    \draw[arr] (m) -- node[above,font=\scriptsize]{1 -- N} (d);
+
+    \coordinate (ua) at ($(u.south)+(0,-1.1)$);
+    \coordinate (da) at ($(d.south)+(0,-1.1)$);
+    \draw[arr] (u.south) -- (ua) -- node[below,font=\scriptsize]{1 -- N} (da) -- (d.south);
+  \end{tikzpicture}
+
+  \vspace{0.3cm}
+  \footnotesize
+  %%% DŨNG KIỂM TRA: đúng với Models/*.cs trên main chưa? Có quan hệ bạn bè (Friend) thì nói thêm ở đây.
+  Một người chơi có nhiều trận; một trận có nhiều lượt bắn (\textbf{MatchDetails}); mật khẩu chỉ lưu dạng \textbf{BCrypt}.
+\end{frame}
+
+% ---------- Slide 2: dữ liệu thật ----------
+\begin{frame}{Dữ Liệu Thật Trên Supabase}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \centering
+      \slideimg[\textwidth]{01-supabase-tables.png}{Supabase Table Editor, bảng Users có vài dòng, cột Password là chuỗi bắt đầu bằng \$2a\$}
+      \par\vspace{2pt}\scriptsize Dữ liệu ghi từ game, mật khẩu là chuỗi băm.
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \centering
+      \slideimg[\textwidth]{03-rest-json.png}{Cửa sổ PowerShell chạy demo\_rest.ps1: bảng xếp hạng và JSON}
+      \par\vspace{2pt}\scriptsize Cùng dữ liệu đó, đọc qua web service (REST).
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Slide 3: RLS ----------
+\begin{frame}{Row Level Security: Khóa Bảng Gốc}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \begin{block}{Vấn đề và cách xử lý}
+        \begin{itemize}
+          \item Supabase \textbf{mặc định mở REST} cho mọi bảng.
+          \item Chưa khóa thì ai có khóa công khai đều \textbf{đọc được cột mật khẩu băm}.
+          \item Đã bật \textbf{RLS}, thu quyền trên 3 bảng gốc.
+          \item Chỉ mở \textbf{view} \texttt{leaderboard} (4 cột, không có Password).
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \centering
+      \slideimg[\textwidth]{02-rest-blocked.png}{Kết quả bước [4] của demo\_rest.ps1: dòng "Bị chặn: HTTP 401" khi đọc thẳng bảng Users}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Slide 4: giao diện ----------
+\begin{frame}{Giao Diện Ứng Dụng Client}
+  \centering
+  \slideimg[0.23\textwidth]{04-client-login.png}{Màn hình Đăng nhập}\hfill
+  \slideimg[0.23\textwidth]{05-client-lobby.png}{Màn hình Lobby}\hfill
+  \slideimg[0.23\textwidth]{06-client-leaderboard.png}{Form Bảng xếp hạng (bỏ nếu chưa có nút)}\hfill
+  \slideimg[0.23\textwidth]{07-login-lockout.png}{Thông báo khi nhập sai mật khẩu 5 lần}
+
+  \vspace{0.3cm}
+  \footnotesize
+  %%% DŨNG KIỂM TRA: ghi tên công nghệ giao diện đúng (WinForms, GDI+...). Slide nào chưa có ảnh thì XÓA khung đó đi.
+  Giao diện \textbf{WinForms}: đăng ký, đăng nhập, sảnh chờ, danh sách phòng, bảng xếp hạng.
+\end{frame}

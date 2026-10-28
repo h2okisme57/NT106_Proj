@@ -1,0 +1,31 @@
+% PHẦN CỦA HOÀNG: Kịch bản demo và dự phòng. (Đức và Dũng KHÔNG sửa file này)
+% =====================================================
+\section{Kịch Bản Demo}
+
+\begin{frame}{Demo Chứng Minh \textquotedblleft Móc Được Dữ Liệu\textquotedblright}
+  \begin{enumerate}
+    \item \textbf{Ghi:} đăng ký tài khoản trong game $\rightarrow$ mở \textbf{Supabase Table Editor}, thấy dòng mới, cột mật khẩu là chuỗi \texttt{\$2a\$...} (BCrypt).
+    \item \textbf{Đọc qua web service:} gọi \texttt{GET .../rest/v1/leaderboard} $\rightarrow$ nhận \textbf{JSON}.
+    \item \textbf{Đọc trong ứng dụng:} Lobby $\rightarrow$ nút \textbf{Bảng xếp hạng} hiển thị dữ liệu lấy qua REST.
+    \item \textbf{Dự phòng:} đặt \texttt{BATTLESHIP\_DB=sqlite} $\rightarrow$ game vẫn chạy khi mất mạng.
+  \end{enumerate}
+  \vspace{0.2cm}
+  \begin{exampleblock}{Thời lượng}
+    Khoảng \textbf{5 phút}. Hoàng thuyết trình và điều khiển demo; Đức và Dũng hỗ trợ thao tác và trả lời câu hỏi thuộc mảng của mình.
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}{Rủi Ro Và Phương Án Dự Phòng}
+  \small
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabularx}{\textwidth}{@{}Y Y@{}}
+    \toprule
+    \textbf{Rủi ro} & \textbf{Phương án} \\
+    \midrule
+    Mạng trường chập chờn & Hotspot 4G; chuyển sang \textbf{SQLite}; phát \textbf{video demo} quay sẵn \\
+    Supabase gói miễn phí tạm dừng project & Kiểm tra dashboard trước buổi demo, bấm \textbf{Restore} nếu cần \\
+    Chuỗi kết nối \textit{direct} không nối được (IPv6) & Dùng chuỗi \textbf{Session pooler} \\
+    Lộ khóa hoặc mật khẩu & Biến môi trường, không commit, không dùng \texttt{service\_role} ở Client \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}

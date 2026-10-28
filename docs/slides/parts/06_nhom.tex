@@ -1,0 +1,49 @@
+% PHẦN CỦA HOÀNG: Phân công, kết luận, cảm ơn. (Đức và Dũng KHÔNG sửa file này)
+% =====================================================
+\section{Nhóm Thực Hiện}
+
+\begin{frame}{Phân Công Thuyết Trình Và Thực Hiện}
+  \small
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm} Y Y@{}}
+    \toprule
+    \textbf{Thành viên} & \textbf{Phần thuyết trình} & \textbf{Phần kỹ thuật} \\
+    \midrule
+    \textbf{Hoàng} \newline {\scriptsize \color{brandblue}\bevnsemi CORE THUYẾT TRÌNH}
+      & Mở đầu, kiến trúc, bảo mật, \textbf{demo live}, kết luận
+      & Supabase, chuyển DB (SQLite $\leftrightarrow$ Supabase), TCP/AES, Bảng xếp hạng qua REST \\
+    \textbf{Dũng}
+      & Mục \textit{Cơ sở dữ liệu} (ERD, RLS), thao tác máy demo
+      & Models/EF Core, SQL \texttt{setup}, dữ liệu mẫu, nút Bảng xếp hạng ở Lobby \\
+    \textbf{Đức}
+      & Mục \textit{Kiến trúc server và game}, thao tác máy thứ hai
+      & RoomManager, State Machine, video demo dự phòng \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.25cm}
+
+  \footnotesize Hoàng nói chính; Đức và Dũng trả lời câu hỏi thuộc mảng của mình.
+\end{frame}
+
+\begin{frame}{Kết Luận}
+  \begin{block}{Những gì đạt được}
+    \begin{itemize}
+      \item Game dùng \textbf{raw socket TCP} với giao thức tự thiết kế, mã hóa \textbf{AES-128}.
+      \item \textbf{Đăng nhập an toàn:} BCrypt, chặn gói khi chưa đăng nhập, khóa khi dò mật khẩu.
+      \item Dữ liệu lưu được trên \textbf{Supabase (PostgreSQL)} qua EF Core.
+      \item Có \textbf{web service REST} để truy vấn bảng xếp hạng từ bên ngoài.
+      \item Vẫn chạy được \textbf{offline} nhờ SQLite dự phòng.
+    \end{itemize}
+  \end{block}
+  \begin{exampleblock}{Hướng phát triển}
+    Đăng nhập bằng token của Supabase Auth, đồng bộ lịch sử trận đấu lên cloud, thêm bảng xếp hạng theo tuần.
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}
+  \centering
+  \vspace{1.5cm}
+  {\bungee\color{inkblue}\fontsize{20}{24}\selectfont CẢM ƠN ĐÃ THEO DÕI!}\par
+  \vspace{0.3cm}
+  {\bevnsemi\color{brandblue}\small Nhóm sẵn sàng trả lời câu hỏi}
+\end{frame}
