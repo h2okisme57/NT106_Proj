@@ -1,115 +1,156 @@
+using Battleship.Server.Handlers;
+using Battleship.Shared;
 using System;
 using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 
-namespace Battleship.Server
+namespace Battleship.Server;
+
+/// <summary>
+/// Quản lý vòng đời của Server TCP: Lắng nghe kết nối, xử lý Handshake, 
+/// duy trì Session của Client và định tuyến các gói tin (Packet).
+/// </summary>
+public class TcpServer
 {
-    // HIỆN THỰC STATE MACHINE (Task 2.1)
-    public enum RoomState
+    private readonly TcpListener _listener;
+
+    // Quản lý danh sách các session đang online (Thread-safe chống xung đột luồng)
+    private readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
+
+    // Quản lý phòng chơi (Phần của Đức đã tích hợp sẵn)
+    private readonly RoomManager _roomManager = new();
+
+    // Bộ định tuyến để chuyển tiếp gói tin đến đúng Handler xử lý
+    private readonly PacketRouter _router;
+
+    // Quản lý việc dừng Server an toàn bằng Token
+    private readonly CancellationTokenSource _cts = new();
+
+    /// <summary>
+    /// Khởi tạo Server TCP với cổng chỉ định
+    /// </summary>
+    public TcpServer(int port)
     {
-        WaitingForPlayers, // Đang chờ đủ 2 người
-        PlacementPhase,    // Cả 2 đang xếp tàu
-        ReadyCheck,        // Đang chờ bấm Ready
-        TurnBasedPlay,     // Đang đánh theo lượt
-        GameOver           // Kết thúc
-    }
-    public class GameRoom
-    {
-        public string RoomId { get; private set; }
-        public ClientSession Host { get; private set; }
-
-        // Thêm dấu ? để đánh dấu Player2 có thể null khi phòng vừa tạo
-        public ClientSession? Player2 { get; private set; }
-
-        // Quản lý trạng thái hiện tại của phòng
-        public RoomState State { get; set; } = RoomState.WaitingForPlayers;
-
-        // Đối tượng lock để đảm bảo luồng an toàn (Thread-safe) trong nội bộ phòng
-        public readonly object RoomLock = new object();
-
-        public bool IsFull => Host != null && Player2 != null;
-
-        public GameRoom(string roomId, ClientSession host)
-        {
-            RoomId = roomId;
-            Host = host;
-        }
-
-        public void AddPlayer(ClientSession player)
-        {
-            if (Player2 == null)
-            {
-                Player2 = player;
-                // Chuyển State Machine khi đủ người
-                State = RoomState.PlacementPhase;
-            }
-        }
-        public void RemovePlayer(ClientSession player)
-        {
-            if (Player2 != null && Player2.SessionId == player.SessionId)
-            {
-                Player2 = null;
-                // Lùi State Machine nếu có người thoạt
-                State = RoomState.WaitingForPlayers;
-            }
-        }
+        // Lắng nghe trên mọi giao diện mạng (IPv4) tại port được cấu hình
+        _listener = new TcpListener(IPAddress.Any, port);
+        _router = new PacketRouter(_sessions);
+        RegisterHandlers();
     }
 
-    public class RoomManager
+    // ===== ĐĂNG KÝ HANDLER: mỗi người THÊM 1 DÒNG cho mảng của mình, không sửa chỗ khác =====
+    /// <summary>
+    /// Đăng ký các bộ xử lý gói tin (Handlers) tương ứng với từng loại PacketType
+    /// </summary>
+    private void RegisterHandlers()
     {
-        // Dùng ConcurrentDictionary theo chuẩn thiết kế để chống Race-condition ở cấp độ danh sách phòng
-        private readonly ConcurrentDictionary<string, GameRoom> _rooms = new ConcurrentDictionary<string, GameRoom>();
+        _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
 
-        // 1. Tạo phòng mới bằng ID
-        public GameRoom? CreateRoom(string roomId, ClientSession host)
+        // DONE (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
+        var authHandler = new AuthHandler();
+        _router.Register(PacketType.LoginRequest, authHandler);
+        _router.Register(PacketType.RegisterRequest, authHandler);
+
+        // ĐĂNG KÝ THÊM HANDLER XỬ LÝ BẠN BÈ (FriendHandler)
+        var friendHandler = new FriendHandler(_sessions);
+        _router.Register(PacketType.GetFriendsRequest, friendHandler);
+
+        // DONE (Đức - 3.4): đăng ký RoomHandler (đã xoá đoạn khai báo trùng)
+        var roomHandler = new RoomHandler(_roomManager, _router);
+        _router.Register(PacketType.GetRoomListRequest, roomHandler);
+        _router.Register(PacketType.CreateRoomRequest, roomHandler);
+        _router.Register(PacketType.JoinRoomRequest, roomHandler);
+        _router.Register(PacketType.LeaveRoom, roomHandler);
+    }
+
+    /// <summary>
+    /// Khởi chạy Server và bắt đầu vòng lặp chấp nhận kết nối từ Client
+    /// </summary>
+    public async Task StartAsync()
+    {
+        _listener.Start();
+        Console.WriteLine($"[TcpServer] Đang lắng nghe tại cổng {((IPEndPoint)_listener.LocalEndpoint).Port}...");
+
+        try
         {
-            var newRoom = new GameRoom(roomId, host);
-            if (_rooms.TryAdd(roomId, newRoom))
+            // Vòng lặp vô hạn chấp nhận Client cho đến khi có tín hiệu dừng (Cancel)
+            while (!_cts.IsCancellationRequested)
             {
-                Console.WriteLine($"[RoomManager] Đã tạo phòng {roomId}. Chủ phòng: {host.SessionId}");
-                return newRoom;
+                // Chờ đợi một Client kết nối tới (Bất đồng bộ)
+                TcpClient client = await _listener.AcceptTcpClientAsync(_cts.Token);
+
+                // Sử dụng Discard (_) để chạy tác vụ xử lý Client độc lập, không block luồng chính
+                _ = HandleClientAsync(client);
             }
-            Console.WriteLine($"[RoomManager] Tạo phòng thất bại, ID {roomId} đã tồn tại.");
-            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("[TcpServer] Đã dừng lắng nghe.");
+        }
+    }
+
+    /// <summary>
+    /// Xử lý quy trình kết nối ban đầu, xác thực và nhận dữ liệu từ Client
+    /// </summary>
+    private async Task HandleClientAsync(TcpClient client)
+    {
+        // Khởi tạo một phiên làm việc mới cho Client
+        var session = new ClientSession(client);
+
+        // Đăng ký sự kiện khi mất kết nối và khi nhận được gói tin từ Client
+        session.OnDisconnected += OnSessionDisconnected;
+        session.OnPacketReceived += _router.RouteAsync;
+
+        // Tiến hành bắt tay (Handshake) để kiểm tra tính hợp lệ của Client
+        bool accepted = await session.PerformHandshakeAsync(_cts.Token);
+        if (!accepted)
+        {
+            Console.WriteLine($"[TcpServer] Handshake thất bại -> đóng session {session.SessionId}");
+            session.Dispose();
+            return;
         }
 
-        // 2. Vào phòng
-        public bool JoinRoom(string roomId, ClientSession player)
-        {
-            if (_rooms.TryGetValue(roomId, out var room))
-            {
-                // Bọc lock tránh trường hợp 2 client ấn Join vào phòng trống cùng 1 mili-giây
-                lock (room.RoomLock)
-                {
-                    if (!room.IsFull)
-                    {
-                        room.AddPlayer(player);
-                        Console.WriteLine($"[RoomManager] Client {player.SessionId} đã vào phòng {roomId}");
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
+        // Thêm session vào danh sách quản lý nếu Handshake thành công
+        _sessions.TryAdd(session.SessionId, session);
+        Console.WriteLine($"[TcpServer] Client {session.SessionId} đã kết nối. Online: {_sessions.Count}");
 
-        // 3. Quyền Kick thành viên
-        public bool KickPlayer(string roomId, ClientSession requestClient, ClientSession targetPlayer)
+        // Bắt đầu vòng lặp nhận gói tin liên tục từ Client này
+        await session.StartReceivingAsync(_cts.Token);
+    }
+
+    /// <summary>
+    /// Xử lý dọn dẹp dữ liệu và thông báo cho người chơi khác khi một Client ngắt kết nối
+    /// </summary>
+    private void OnSessionDisconnected(ClientSession session)
+    {
+        // Xóa Session khỏi danh sách đang hoạt động
+        _sessions.TryRemove(session.SessionId, out _);
+        OnlineUsers.Remove(session);
+        Console.WriteLine($"[TcpServer] Client {session.SessionId} đã ngắt. Online: {_sessions.Count}");
+
+        // Nếu Client này trước đó đã đăng nhập thành công, phát thông báo Offline cho toàn server
+        if (session.IsLoggedIn && !string.IsNullOrEmpty(session.Username))
         {
-            if (_rooms.TryGetValue(roomId, out var room))
+            var offlinePacket = new Packet
             {
-                lock (room.RoomLock)
-                {
-                    // Xác thực quyền: Chỉ Chủ phòng (Host) mới được thực hiện lệnh Kick
-                    if (room.Host.SessionId == requestClient.SessionId &&
-                        room.Player2 != null && room.Player2.SessionId == targetPlayer.SessionId)
-                    {
-                        room.RemovePlayer(targetPlayer);
-                        Console.WriteLine($"[RoomManager] Host {requestClient.SessionId} đã Kick {targetPlayer.SessionId} khỏi phòng {roomId}");
-                        return true;
-                    }
-                }
-            }
-            return false;
+                Type = PacketType.OnlineListUpdate,
+                Payload = JsonSerializer.Serialize(new { Username = session.Username, Status = "Offline" })
+            };
+
+            // Phát thông báo bất đồng bộ (Fire-and-forget) tới tất cả các Client khác
+            _ = _router.BroadcastAsync(offlinePacket);
         }
+    }
+
+    /// <summary>
+    /// Ngắt toàn bộ kết nối và dừng hoạt động của Server
+    /// </summary>
+    public void Stop()
+    {
+        _cts.Cancel(); // Kích hoạt hủy bỏ để dừng các vòng lặp while/await đang chạy
+        _listener.Stop(); // Dừng lắng nghe cổng TCP
     }
 }
