@@ -68,7 +68,7 @@ namespace Battleship.Client
             }
         }
 
-        // Đăng ký hủy sự kiện khi UserControl bịDispose/đóng
+        // Đăng ký hủy sự kiện khi UserControl bị Dispose/đóng
         protected override void OnHandleDestroyed(EventArgs e)
         {
             if (NetworkManager.Instance != null)
@@ -111,7 +111,16 @@ namespace Battleship.Client
             chatPanel.FlowDirection = FlowDirection.TopDown;
             chatPanel.WrapContents = false;
 
+            // Ẩn chatPanel khi khởi tạo
+            chatPanel.Visible = false;
+
             this.Controls.Add(chatPanel);
+
+            // Gán sự kiện hiển thị khi bấm/focus vào boxChat
+            boxChat.Enter += TextBox1_Enter;
+
+            // Ẩn khi click ra vùng trống trên Lobby
+            this.Click += Lobby_Click;
         }
 
         private void AddChatMessage(string sender, string content)
@@ -129,6 +138,10 @@ namespace Battleship.Client
                 msgLabel.MaximumSize = new Size(370, 0);
 
                 chatPanel.Controls.Add(msgLabel);
+
+                // Tự động hiển thị khung chat khi có tin nhắn mới tới
+                chatPanel.Visible = true;
+
                 chatPanel.ScrollControlIntoView(msgLabel);
             }));
         }
@@ -153,7 +166,6 @@ namespace Battleship.Client
 
                 try
                 {
-                    // Tạo DTO chứa nội dung tin nhắn và Tên người gửi từ PlayerProfile
                     var chatMsg = new ChatMessageDto
                     {
                         Sender = PlayerProfile.Username,
@@ -162,10 +174,8 @@ namespace Battleship.Client
 
                     var packet = Packet.Create(PacketType.ChatMessage, chatMsg);
 
-                    // Xóa khung chat ngay để nâng cao trải nghiệm người dùng
                     boxChat.Clear();
 
-                    // Gửi bất đồng bộ lên Server
                     await NetworkManager.Instance.SendAsync(packet);
                 }
                 catch (Exception ex)
@@ -194,7 +204,6 @@ namespace Battleship.Client
 
         private bool CheckLogin()
         {
-            // Kiểm tra xem trong PlayerProfile đã có thông tin người dùng chưa
             if (PlayerProfile.CurrentUser != null)
             {
                 isLoggedIn = true;
@@ -204,12 +213,23 @@ namespace Battleship.Client
             using (Form popupLogin = new Form())
             {
                 ucLogin loginScreen = new ucLogin();
+
+                // 1. Đặt vị trí UserControl bám góc (0,0) của Form chứa
+                loginScreen.Location = new Point(0, 0);
+
+                // 2. Thêm Control vào Form trước
                 popupLogin.Controls.Add(loginScreen);
+
+                // 3. Khóa kích thước Form vừa khít 100% với UserControl
                 popupLogin.ClientSize = loginScreen.Size;
                 popupLogin.FormBorderStyle = FormBorderStyle.None;
-                popupLogin.StartPosition = FormStartPosition.CenterScreen;
+                popupLogin.StartPosition = FormStartPosition.CenterParent;
 
-                DialogResult result = popupLogin.ShowDialog();
+                // Tùy chọn: Đảm bảo nền Form khớp với nền UserControl
+                popupLogin.BackColor = loginScreen.BackColor;
+
+                // 4. Hiển thị Form căn giữa theo Form chính (Lobby)
+                DialogResult result = popupLogin.ShowDialog(this.FindForm());
 
                 if (result == DialogResult.OK)
                 {
@@ -225,31 +245,23 @@ namespace Battleship.Client
 
         private async void btnFindRoom_Click(object sender, EventArgs e)
         {
-            // 1. Kiểm tra đăng nhập
             if (!CheckLogin()) return;
-
-            // 2. Xóa các Panel con đang hiển thị đè lên Lobby
             DeleteAccess();
 
-            // 3. Khởi tạo màn hình RoomWait
             RoomWait pnlRoomWait = new RoomWait();
 
-            // Căn giữa giao diện RoomWait trong Lobby
             int centerX = (this.Width - pnlRoomWait.Width) / 2;
             int centerY = (this.Height - pnlRoomWait.Height) / 2;
             pnlRoomWait.Location = new Point(centerX, centerY);
             pnlRoomWait.Name = "pnlRoomWait";
 
-            // Thêm vào Lobby và đưa lên phía trước
             this.Controls.Add(pnlRoomWait);
             pnlRoomWait.BringToFront();
 
-            // 4. Báo cho Server biết để tạo phòng mới cho người chơi này ngồi chờ
             if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
             {
                 try
                 {
-                    // Gửi DTO tạo phòng lên Server
                     var createRoomDto = new CreateRoomDto
                     {
                         RoomName = $"Phòng của {PlayerProfile.Username}"
@@ -271,16 +283,11 @@ namespace Battleship.Client
 
         private async void btnCreateRoom_Click(object sender, EventArgs e)
         {
-            // 1. Kiểm tra đăng nhập
             if (!CheckLogin()) return;
-
-            // 2. Xóa các Panel con (như pnlJoin, pnlLogin...) đang hiển thị đè lên Lobby
             DeleteAccess();
 
-            // 3. Khởi tạo và hiển thị màn hình phòng chờ (RoomWait)
             RoomWait pnlRoomWait = new RoomWait();
 
-            // Căn giữa giao diện RoomWait
             int centerX = (this.Width - pnlRoomWait.Width) / 2;
             int centerY = (this.Height - pnlRoomWait.Height) / 2;
             pnlRoomWait.Location = new Point(centerX, centerY);
@@ -289,13 +296,11 @@ namespace Battleship.Client
             this.Controls.Add(pnlRoomWait);
             pnlRoomWait.BringToFront();
 
-            // 4. Gửi yêu cầu Tạo phòng lên Server (Người tạo mặc định sẽ là Host)
             if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
             {
                 try
                 {
-                    // Thay PlayerProfile.Username bằng biến lưu tên người dùng hiện tại của bạn
-                    string hostName = "Bạn"; // Gán tạm nếu chưa có biến tĩnh lưu Username
+                    string hostName = PlayerProfile.Username ?? "Bạn";
 
                     var createRoomDto = new CreateRoomDto
                     {
@@ -314,7 +319,6 @@ namespace Battleship.Client
             {
                 MessageBox.Show("Mất kết nối với máy chủ!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
-                // Gỡ RoomWait nếu không có mạng
                 this.Controls.Remove(pnlRoomWait);
                 pnlRoomWait.Dispose();
             }
@@ -363,27 +367,34 @@ namespace Battleship.Client
 
         private void btnLeaderBoard_Click_1(object sender, EventArgs e)
         {
-            //if (!CheckLogin()) return;
             DeleteAccess();
 
-            // Khởi tạo form bảng xếp hạng
             frmLeaderboard leaderboardForm = new frmLeaderboard();
-
-            // Sử dụng ShowDialog() để hiển thị form lên trên cùng 
-            // Người dùng phải đóng form này mới thao tác tiếp được với Lobby
             leaderboardForm.ShowDialog();
+        }
+
+        private void TextBox1_Enter(object sender, EventArgs e)
+        {
+            if (chatPanel != null)
+            {
+                chatPanel.Visible = true;
+                chatPanel.BringToFront();
+            }
+        }
+
+        private void Lobby_Click(object sender, EventArgs e)
+        {
+            // Nếu bấm ra ngoài boxChat và chatPanel thì ẩn chatbox
+            if (chatPanel != null && !boxChat.Focused)
+            {
+                chatPanel.Visible = false;
+            }
         }
 
         private void lblBattleshiptxt_Click(object sender, EventArgs e) { }
         private void richTextBox1_TextChanged(object sender, EventArgs e) { }
         private void textBox1_TextChanged(object sender, EventArgs e) { }
         private void Lobby_Load_1(object sender, EventArgs e) { }
-
-        private void btnLeaderboard_Click(object sender, EventArgs e)
-        {
-            
-        }
-
-        
+        private void btnLeaderboard_Click(object sender, EventArgs e) { }
     }
 }

@@ -146,6 +146,8 @@
             Name = "Lobby";
             Size = new Size(978, 641);
             Load += Lobby_Load_1;
+            Click += Lobby_Click;
+            DoubleClick += Lobby_Click;
             ResumeLayout(false);
             PerformLayout();
         }

@@ -3,13 +3,23 @@ using Microsoft.VisualBasic.ApplicationServices;
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Net.WebRequestMethods;
 
 namespace Battleship.Client
 {
     public partial class ucLogin : UserControl
     {
+        private const string DefaultUrl = "https://hqhggiixuqhhpuydparb.supabase.co";
+        private const string DefaultKey = "sb_publishable__CEmQx8woYvxjvD0qUCeKg_4Gf8LMA3";
+        private static readonly HttpClient _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+        private readonly string _baseUrl;
+        private readonly string _key;
+
+
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
         private const int EM_SETMARGINS = 0xd3;
@@ -23,6 +33,8 @@ namespace Battleship.Client
         {
             InitializeComponent();
             this.Load += ucLogin_Load;
+            _baseUrl = (Environment.GetEnvironmentVariable("SUPABASE_URL") ?? DefaultUrl).TrimEnd('/');
+            _key = Environment.GetEnvironmentVariable("SUPABASE_PUBLISHABLE_KEY") ?? DefaultKey;
         }
 
         private void ucLogin_Load(object sender, EventArgs e)
@@ -146,80 +158,77 @@ namespace Battleship.Client
 
             try
             {
-                if (!NetworkManager.Instance.IsConnected)
+                // 1. Tạo đường dẫn REST API truy vấn bảng Users (hoặc accounts) trên Supabase
+                // Tìm user trùng khớp Username và Password
+                string url = $"{_baseUrl}/rest/v1/users?username=eq.{Uri.EscapeDataString(user)}&password=eq.{Uri.EscapeDataString(pass)}&select=*";
+
+                using (var req = new HttpRequestMessage(HttpMethod.Get, url))
                 {
-                    bool connected = await NetworkManager.Instance.ConnectAsync("127.0.0.1", 8000);
-                    if (!connected)
+                    req.Headers.Add("apikey", _key);
+                    // Thêm Authorization header nếu cần thiết cho Supabase
+                    req.Headers.Add("Authorization", $"Bearer {_key}");
+
+                    using (var res = await _http.SendAsync(req))
                     {
-                        lblErrorTxt.ForeColor = Color.Red;
-                        lblErrorTxt.Text = "Không thể kết nối đến máy chủ!";
-                        return;
-                    }
-                }
+                        string json = await res.Content.ReadAsStringAsync();
 
-                var loginReq = new LoginRequestDto
-                {
-                    Username = user,
-                    Password = pass
-                };
-                var packet = Packet.Create(PacketType.LoginRequest, loginReq);
-
-                await NetworkManager.Instance.SendAsync(packet);
-
-                var responsePacket = await NetworkManager.Instance.WaitForPacketAsync(PacketType.LoginResponse);
-
-                if (responsePacket != null)
-                {
-                    var loginRes = responsePacket.DeserializePayload<LoginResponseDto>();
-
-                    if (loginRes != null && loginRes.Success)
-                    {
-                        failedLoginCount = 0; // Reset khi thành công
-                        PlayerProfile.CurrentUser = loginRes;
-
-                        lblErrorTxt.ForeColor = Color.Green;
-                        lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
-
-                        await Task.Delay(500);
-
-                        Form popup = this.FindForm();
-                        if (popup != null)
+                        if (!res.IsSuccessStatusCode)
                         {
-                            popup.DialogResult = DialogResult.OK;
+                            lblErrorTxt.ForeColor = Color.Red;
+                            lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
+                            return;
                         }
-                    }
-                    else
-                    {
-                        failedLoginCount++; // Tăng biến đếm khi sai
 
-                        if (failedLoginCount >= 5)
+                        // 2. Giải mã JSON trả về danh sách User DTO
+                        var userList = JsonSerializer.Deserialize<List<LoginResponseDto>>(json, JsonConfig.Options);
+
+                        // 3. Kiểm tra xem có tìm thấy tài khoản hợp lệ không
+                        if (userList != null && userList.Count > 0)
                         {
-                            // Vượt quá 5 lần thì gọi hàm khóa
-                            await HandleLockoutAsync();
+                            var currentUser = userList[0];
+
+                            failedLoginCount = 0; // Reset số lần đăng nhập sai
+                           // PlayerProfile.CurrentUser = currentUser;
+                            //PlayerProfile.Username = currentUser.Username; // Lưu lại Username
+
+                            lblErrorTxt.ForeColor = Color.Green;
+                            lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
+
+                            await Task.Delay(500);
+
+                            Form popup = this.FindForm();
+                            if (popup != null)
+                            {
+                                popup.DialogResult = DialogResult.OK;
+                            }
                         }
                         else
                         {
-                            lblErrorTxt.ForeColor = Color.Red;
-                            lblErrorTxt.Text = loginRes?.Message ?? "Tài khoản hoặc mật khẩu không chính xác!";
-                            boxPasswordTxt.Clear();
-                            boxPasswordTxt.Focus();
+                            failedLoginCount++; // Tăng biến đếm khi nhập sai
+
+                            if (failedLoginCount >= 5)
+                            {
+                                await HandleLockoutAsync();
+                            }
+                            else
+                            {
+                                lblErrorTxt.ForeColor = Color.Red;
+                                lblErrorTxt.Text = $"Tài khoản hoặc mật khẩu không chính xác! ({failedLoginCount}/5)";
+                                boxPasswordTxt.Clear();
+                                boxPasswordTxt.Focus();
+                            }
                         }
                     }
                 }
-                else
-                {
-                    lblErrorTxt.ForeColor = Color.Red;
-                    lblErrorTxt.Text = "Không nhận được phản hồi từ máy chủ!";
-                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 lblErrorTxt.ForeColor = Color.Red;
-                lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
+                lblErrorTxt.Text = $"Lỗi kết nối: {ex.Message}";
             }
             finally
             {
-                // Chỉ mở lại nút bấm nếu user không đang trong trạng thái bị khóa
+                // Mở lại nút bấm nếu không trong trạng thái bị khóa
                 if (!isLockedOut)
                 {
                     btnLogin.Enabled = true;
