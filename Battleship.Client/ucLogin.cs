@@ -10,11 +10,14 @@ namespace Battleship.Client
 {
     public partial class ucLogin : UserControl
     {
-        // GỌI HÀM LÕI WINDOWS ĐỂ TẠO THỤT LỀ (PADDING)
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
         private const int EM_SETMARGINS = 0xd3;
         private const int EC_LEFTMARGIN = 1;
+
+        // Bổ sung biến theo dõi khóa đăng nhập
+        private int failedLoginCount = 0;
+        private bool isLockedOut = false;
 
         public ucLogin()
         {
@@ -24,29 +27,24 @@ namespace Battleship.Client
 
         private void ucLogin_Load(object sender, EventArgs e)
         {
-            this.ActiveControl = null; // Xóa nháy chuột lúc mới mở form
+            this.ActiveControl = null;
 
-            // 1. TẠO ĐỘ THỤT LỀ TRÁI CHO TEXTBOX
             SendMessage(boxUsernameTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
             SendMessage(boxPasswordTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
 
-            // 2. CÀI ĐẶT PLACEHOLDER BAN ĐẦU
             boxUsernameTxt.Text = "Tên đăng nhập";
             boxUsernameTxt.ForeColor = Color.Gray;
 
-            // Ký tự '\0' (Null) lệnh cho Windows hiển thị rõ chữ, không che dấu chấm
             boxPasswordTxt.PasswordChar = '\0';
             boxPasswordTxt.Text = "Mật khẩu";
             boxPasswordTxt.ForeColor = Color.Gray;
 
-            // 3. GẮN SỰ KIỆN FOCUS ENTER / LEAVE
             boxUsernameTxt.Enter += boxUsernameTxt_Enter;
             boxUsernameTxt.Leave += boxUsernameTxt_Leave;
 
             boxPasswordTxt.Enter += boxPasswordTxt_Enter;
             boxPasswordTxt.Leave += boxPasswordTxt_Leave;
 
-            // 4. BẮT SỰ KIỆN CLICK TOÀN MÀN HÌNH ĐỂ ÉP NHẢ FOCUS TEXTBOX
             this.Click += LoseFocus_Click;
             AttachClickToAllControls(this);
         }
@@ -55,7 +53,6 @@ namespace Battleship.Client
         {
             foreach (Control ctrl in container.Controls)
             {
-                // Gắn sự kiện nhả Focus cho tất cả mọi thứ TRỪ TextBox
                 if (!(ctrl is TextBox))
                 {
                     ctrl.Click += LoseFocus_Click;
@@ -68,7 +65,6 @@ namespace Battleship.Client
             }
         }
 
-        // === HÀM ÉP NHẢ FOCUS TỪ TẬN GỐC ===
         private void LoseFocus_Click(object sender, EventArgs e)
         {
             Form parentForm = this.FindForm();
@@ -78,7 +74,6 @@ namespace Battleship.Client
             }
         }
 
-        // ================= XỬ LÝ USERNAME =================
         private void boxUsernameTxt_Enter(object sender, EventArgs e)
         {
             if (boxUsernameTxt.Text == "Tên đăng nhập")
@@ -97,7 +92,6 @@ namespace Battleship.Client
             }
         }
 
-        // ================= XỬ LÝ PASSWORD =================
         private void boxPasswordTxt_Enter(object sender, EventArgs e)
         {
             if (boxPasswordTxt.Text == "Mật khẩu")
@@ -118,7 +112,6 @@ namespace Battleship.Client
             }
         }
 
-        // ================= CHUYỂN SANG MÀN HÌNH ĐĂNG KÝ =================
         private void llblRegister_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             Form popup = FindForm();
@@ -131,13 +124,14 @@ namespace Battleship.Client
             }
         }
 
-        // ================= XỬ LÝ ĐĂNG NHẬP (LÔGIC CHÍNH) =================
         private async void btnLogin_Click(object sender, EventArgs e)
         {
+            // Chặn click nếu đang bị khóa
+            if (isLockedOut) return;
+
             string user = boxUsernameTxt.Text.Trim();
             string pass = boxPasswordTxt.Text.Trim();
 
-            // 1. Kiểm tra rỗng hoặc chữ placeholder (watermark)
             if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass) ||
                 user == "Tên đăng nhập" || pass == "Mật khẩu")
             {
@@ -148,11 +142,10 @@ namespace Battleship.Client
 
             lblErrorTxt.ForeColor = Color.Blue;
             lblErrorTxt.Text = "Đang kết nối...";
-            btnLogin.Enabled = false; // Vô hiệu hóa nút bấm để tránh spam
+            btnLogin.Enabled = false;
 
             try
             {
-                // 2. Tự động kết nối & Bắt tay (Handshake) với Server nếu chưa kết nối
                 if (!NetworkManager.Instance.IsConnected)
                 {
                     bool connected = await NetworkManager.Instance.ConnectAsync("127.0.0.1", 8000);
@@ -164,7 +157,6 @@ namespace Battleship.Client
                     }
                 }
 
-                // 3. Đóng gói DTO thành Packet
                 var loginReq = new LoginRequestDto
                 {
                     Username = user,
@@ -172,10 +164,8 @@ namespace Battleship.Client
                 };
                 var packet = Packet.Create(PacketType.LoginRequest, loginReq);
 
-                // 4. Gửi lên Server
                 await NetworkManager.Instance.SendAsync(packet);
 
-                // 5. Chờ phản hồi LoginResponse từ Server
                 var responsePacket = await NetworkManager.Instance.WaitForPacketAsync(PacketType.LoginResponse);
 
                 if (responsePacket != null)
@@ -184,7 +174,7 @@ namespace Battleship.Client
 
                     if (loginRes != null && loginRes.Success)
                     {
-                        // BÊ NGUYÊN GÓI DTO VÀO PLAYER PROFILE. XONG!
+                        failedLoginCount = 0; // Reset khi thành công
                         PlayerProfile.CurrentUser = loginRes;
 
                         lblErrorTxt.ForeColor = Color.Green;
@@ -200,10 +190,20 @@ namespace Battleship.Client
                     }
                     else
                     {
-                        lblErrorTxt.ForeColor = Color.Red;
-                        lblErrorTxt.Text = loginRes?.Message ?? "Tài khoản hoặc mật khẩu không chính xác!";
-                        boxPasswordTxt.Clear();
-                        boxPasswordTxt.Focus();
+                        failedLoginCount++; // Tăng biến đếm khi sai
+
+                        if (failedLoginCount >= 5)
+                        {
+                            // Vượt quá 5 lần thì gọi hàm khóa
+                            await HandleLockoutAsync();
+                        }
+                        else
+                        {
+                            lblErrorTxt.ForeColor = Color.Red;
+                            lblErrorTxt.Text = loginRes?.Message ?? "Tài khoản hoặc mật khẩu không chính xác!";
+                            boxPasswordTxt.Clear();
+                            boxPasswordTxt.Focus();
+                        }
                     }
                 }
                 else
@@ -219,8 +219,38 @@ namespace Battleship.Client
             }
             finally
             {
-                btnLogin.Enabled = true; // Mở lại nút bấm khi hoàn tất
+                // Chỉ mở lại nút bấm nếu user không đang trong trạng thái bị khóa
+                if (!isLockedOut)
+                {
+                    btnLogin.Enabled = true;
+                }
             }
+        }
+
+        // === HÀM XỬ LÝ KHÓA ĐĂNG NHẬP 60 GIÂY ===
+        private async Task HandleLockoutAsync()
+        {
+            isLockedOut = true;
+            btnLogin.Enabled = false;
+            boxUsernameTxt.Enabled = false;
+            boxPasswordTxt.Enabled = false;
+            lblErrorTxt.ForeColor = Color.Red;
+
+            // Chạy đếm ngược 60 giây và cập nhật trực tiếp lên Label
+            for (int i = 60; i > 0; i--)
+            {
+                lblErrorTxt.Text = $"Đăng nhập sai quá nhiều lần. Thử lại sau {i} giây.";
+                await Task.Delay(1000);
+            }
+
+            // Mở khóa sau khi đếm xong
+            failedLoginCount = 0;
+            isLockedOut = false;
+            btnLogin.Enabled = true;
+            boxUsernameTxt.Enabled = true;
+            boxPasswordTxt.Enabled = true;
+            boxPasswordTxt.Clear();
+            lblErrorTxt.Text = "";
         }
     }
 }

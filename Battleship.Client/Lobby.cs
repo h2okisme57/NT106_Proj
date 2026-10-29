@@ -363,7 +363,7 @@ namespace Battleship.Client
 
         private void btnLeaderBoard_Click_1(object sender, EventArgs e)
         {
-            if (!CheckLogin()) return;
+            //if (!CheckLogin()) return;
             DeleteAccess();
 
             // Khởi tạo form bảng xếp hạng
