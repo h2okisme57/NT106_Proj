@@ -1,31 +1,31 @@
 ﻿using Battleship.Shared;
-using Microsoft.VisualBasic.ApplicationServices;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Net.Http; // Bắt buộc phải có để gọi REST API
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static System.Net.WebRequestMethods;
 
 namespace Battleship.Client
 {
     public partial class ucLogin : UserControl
     {
+        // Địa chỉ URL và Key của Supabase
         private const string DefaultUrl = "https://hqhggiixuqhhpuydparb.supabase.co";
         private const string DefaultKey = "sb_publishable__CEmQx8woYvxjvD0qUCeKg_4Gf8LMA3";
+
         private static readonly HttpClient _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 
         private readonly string _baseUrl;
         private readonly string _key;
-
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
         private const int EM_SETMARGINS = 0xd3;
         private const int EC_LEFTMARGIN = 1;
 
-        // Bổ sung biến theo dõi khóa đăng nhập
         private int failedLoginCount = 0;
         private bool isLockedOut = false;
 
@@ -33,8 +33,12 @@ namespace Battleship.Client
         {
             InitializeComponent();
             this.Load += ucLogin_Load;
-            _baseUrl = (Environment.GetEnvironmentVariable("SUPABASE_URL") ?? DefaultUrl).TrimEnd('/');
-            _key = Environment.GetEnvironmentVariable("SUPABASE_PUBLISHABLE_KEY") ?? DefaultKey;
+
+            string envUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
+            string envKey = Environment.GetEnvironmentVariable("SUPABASE_PUBLISHABLE_KEY");
+
+            _baseUrl = (!string.IsNullOrEmpty(envUrl) ? envUrl : DefaultUrl).TrimEnd('/');
+            _key = !string.IsNullOrEmpty(envKey) ? envKey : DefaultKey;
         }
 
         private void ucLogin_Load(object sender, EventArgs e)
@@ -138,7 +142,6 @@ namespace Battleship.Client
 
         private async void btnLogin_Click(object sender, EventArgs e)
         {
-            // Chặn click nếu đang bị khóa
             if (isLockedOut) return;
 
             string user = boxUsernameTxt.Text.Trim();
@@ -158,15 +161,13 @@ namespace Battleship.Client
 
             try
             {
-                // 1. Tạo đường dẫn REST API truy vấn bảng Users (hoặc accounts) trên Supabase
-                // Tìm user trùng khớp Username và Password
-                string url = $"{_baseUrl}/rest/v1/users?username=eq.{Uri.EscapeDataString(user)}&password=eq.{Uri.EscapeDataString(pass)}&select=*";
+                // URL khớp 100% tên bảng Users và tên cột Username, Password
+                string url = $"{_baseUrl}/rest/v1/Users?Username=eq.{Uri.EscapeDataString(user)}&Password=eq.{Uri.EscapeDataString(pass)}&select=*";
 
                 using (var req = new HttpRequestMessage(HttpMethod.Get, url))
                 {
-                    req.Headers.Add("apikey", _key);
-                    // Thêm Authorization header nếu cần thiết cho Supabase
-                    req.Headers.Add("Authorization", $"Bearer {_key}");
+                    req.Headers.TryAddWithoutValidation("apikey", _key);
+                    req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_key}");
 
                     using (var res = await _http.SendAsync(req))
                     {
@@ -175,21 +176,17 @@ namespace Battleship.Client
                         if (!res.IsSuccessStatusCode)
                         {
                             lblErrorTxt.ForeColor = Color.Red;
-                            lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
+                            // Hiển thị thêm chi tiết lỗi từ Supabase nếu có
+                            lblErrorTxt.Text = $"Lỗi HTTP {(int)res.StatusCode}: Bảng hoặc tên cột không khớp!";
                             return;
                         }
 
-                        // 2. Giải mã JSON trả về danh sách User DTO
                         var userList = JsonSerializer.Deserialize<List<LoginResponseDto>>(json, JsonConfig.Options);
 
-                        // 3. Kiểm tra xem có tìm thấy tài khoản hợp lệ không
                         if (userList != null && userList.Count > 0)
                         {
                             var currentUser = userList[0];
-
-                            failedLoginCount = 0; // Reset số lần đăng nhập sai
-                           // PlayerProfile.CurrentUser = currentUser;
-                            //PlayerProfile.Username = currentUser.Username; // Lưu lại Username
+                            failedLoginCount = 0;
 
                             lblErrorTxt.ForeColor = Color.Green;
                             lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
@@ -204,7 +201,7 @@ namespace Battleship.Client
                         }
                         else
                         {
-                            failedLoginCount++; // Tăng biến đếm khi nhập sai
+                            failedLoginCount++;
 
                             if (failedLoginCount >= 5)
                             {
@@ -213,7 +210,7 @@ namespace Battleship.Client
                             else
                             {
                                 lblErrorTxt.ForeColor = Color.Red;
-                                lblErrorTxt.Text = $"Tài khoản hoặc mật khẩu không chính xác! ({failedLoginCount}/5)";
+                                lblErrorTxt.Text = $"Sai tài khoản hoặc mật khẩu! ({failedLoginCount}/5)";
                                 boxPasswordTxt.Clear();
                                 boxPasswordTxt.Focus();
                             }
@@ -228,7 +225,6 @@ namespace Battleship.Client
             }
             finally
             {
-                // Mở lại nút bấm nếu không trong trạng thái bị khóa
                 if (!isLockedOut)
                 {
                     btnLogin.Enabled = true;
@@ -236,7 +232,6 @@ namespace Battleship.Client
             }
         }
 
-        // === HÀM XỬ LÝ KHÓA ĐĂNG NHẬP 60 GIÂY ===
         private async Task HandleLockoutAsync()
         {
             isLockedOut = true;
@@ -245,14 +240,12 @@ namespace Battleship.Client
             boxPasswordTxt.Enabled = false;
             lblErrorTxt.ForeColor = Color.Red;
 
-            // Chạy đếm ngược 60 giây và cập nhật trực tiếp lên Label
             for (int i = 60; i > 0; i--)
             {
-                lblErrorTxt.Text = $"Đăng nhập sai quá nhiều lần. Thử lại sau {i} giây.";
+                lblErrorTxt.Text = $"Thử lại sau {i} giây.";
                 await Task.Delay(1000);
             }
 
-            // Mở khóa sau khi đếm xong
             failedLoginCount = 0;
             isLockedOut = false;
             btnLogin.Enabled = true;
