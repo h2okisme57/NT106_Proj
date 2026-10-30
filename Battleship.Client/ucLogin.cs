@@ -12,12 +12,6 @@ namespace Battleship.Client
 {
     public partial class ucLogin : UserControl
     {
-        private const string DefaultUrl = "https://hqhggiixuqhhpuydparb.supabase.co";
-        private const string DefaultKey = "sb_publishable__CEmQx8woYvxjvD0qUCeKg_4Gf8LMA3";
-        private static readonly HttpClient _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-
-        private readonly string _baseUrl;
-        private readonly string _key;
 
 
         [DllImport("user32.dll")]
@@ -33,8 +27,6 @@ namespace Battleship.Client
         {
             InitializeComponent();
             this.Load += ucLogin_Load;
-            _baseUrl = (Environment.GetEnvironmentVariable("SUPABASE_URL") ?? DefaultUrl).TrimEnd('/');
-            _key = Environment.GetEnvironmentVariable("SUPABASE_PUBLISHABLE_KEY") ?? DefaultKey;
         }
 
         private void ucLogin_Load(object sender, EventArgs e)
@@ -158,73 +150,87 @@ namespace Battleship.Client
 
             try
             {
-                // 1. Tạo đường dẫn REST API truy vấn bảng Users (hoặc accounts) trên Supabase
-                // Tìm user trùng khớp Username và Password
-                string url = $"{_baseUrl}/rest/v1/users?username=eq.{Uri.EscapeDataString(user)}&password=eq.{Uri.EscapeDataString(pass)}&select=*";
-
-                using (var req = new HttpRequestMessage(HttpMethod.Get, url))
+                // 1. Kết nối và Bắt tay với Server. Đăng nhập đi qua TCP, KHÔNG gọi thẳng cơ sở dữ liệu:
+                //    server mới là nơi kiểm tra BCrypt, khóa dò mật khẩu và chống đăng nhập trùng.
+                if (!NetworkManager.Instance.IsConnected)
                 {
-                    req.Headers.Add("apikey", _key);
-                    // Thêm Authorization header nếu cần thiết cho Supabase
-                    req.Headers.Add("Authorization", $"Bearer {_key}");
-
-                    using (var res = await _http.SendAsync(req))
+                    bool connected = await NetworkManager.Instance.ConnectAsync("127.0.0.1", 8000);
+                    if (!connected)
                     {
-                        string json = await res.Content.ReadAsStringAsync();
+                        lblErrorTxt.ForeColor = Color.Red;
+                        lblErrorTxt.Text = "Không thể kết nối đến máy chủ!";
+                        return;
+                    }
+                }
 
-                        if (!res.IsSuccessStatusCode)
+                // 2. Gửi LoginRequest rồi chờ LoginResponse
+                var loginReq = new LoginRequestDto { Username = user, Password = pass };
+                await NetworkManager.Instance.SendAsync(Packet.Create(PacketType.LoginRequest, loginReq));
+                var responsePacket = await NetworkManager.Instance.WaitForPacketAsync(PacketType.LoginResponse);
+
+                if (responsePacket == null)
+                {
+                    lblErrorTxt.ForeColor = Color.Red;
+                    lblErrorTxt.Text = "Không nhận được phản hồi từ máy chủ!";
+                    return;
+                }
+
+                var loginRes = responsePacket.DeserializePayload<LoginResponseDto>();
+
+                if (loginRes != null && loginRes.Success)
+                {
+                    failedLoginCount = 0;
+                    PlayerProfile.CurrentUser = loginRes;   // bê nguyên gói DTO vào PlayerProfile
+
+                    lblErrorTxt.ForeColor = Color.Green;
+                    lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
+
+                    await Task.Delay(500);
+
+                    Form popup = this.FindForm();
+                    if (popup != null)
+                    {
+                        popup.DialogResult = DialogResult.OK;
+                    }
+                }
+                else
+                {
+                    string message = loginRes?.Message ?? "Tài khoản hoặc mật khẩu không chính xác!";
+
+                    // Server đang khóa vì sai quá nhiều lần: lấy số giây còn lại từ thông báo của server
+                    var lockMatch = System.Text.RegularExpressions.Regex.Match(message, @"(\d+)\s*giây");
+                    if (message.Contains("quá nhiều") && lockMatch.Success)
+                    {
+                        await HandleLockoutAsync(int.Parse(lockMatch.Groups[1].Value));
+                    }
+                    else if (message.StartsWith("Sai tài khoản"))
+                    {
+                        failedLoginCount++;   // chỉ đếm khi sai tên/mật khẩu
+
+                        if (failedLoginCount >= 5)
                         {
-                            lblErrorTxt.ForeColor = Color.Red;
-                            lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
-                            return;
-                        }
-
-                        // 2. Giải mã JSON trả về danh sách User DTO
-                        var userList = JsonSerializer.Deserialize<List<LoginResponseDto>>(json, JsonConfig.Options);
-
-                        // 3. Kiểm tra xem có tìm thấy tài khoản hợp lệ không
-                        if (userList != null && userList.Count > 0)
-                        {
-                            var currentUser = userList[0];
-
-                            failedLoginCount = 0; // Reset số lần đăng nhập sai
-                           // PlayerProfile.CurrentUser = currentUser;
-                            //PlayerProfile.Username = currentUser.Username; // Lưu lại Username
-
-                            lblErrorTxt.ForeColor = Color.Green;
-                            lblErrorTxt.Text = "Đăng nhập thành công! Đang vào sảnh...";
-
-                            await Task.Delay(500);
-
-                            Form popup = this.FindForm();
-                            if (popup != null)
-                            {
-                                popup.DialogResult = DialogResult.OK;
-                            }
+                            await HandleLockoutAsync(60);
                         }
                         else
                         {
-                            failedLoginCount++; // Tăng biến đếm khi nhập sai
-
-                            if (failedLoginCount >= 5)
-                            {
-                                await HandleLockoutAsync();
-                            }
-                            else
-                            {
-                                lblErrorTxt.ForeColor = Color.Red;
-                                lblErrorTxt.Text = $"Tài khoản hoặc mật khẩu không chính xác! ({failedLoginCount}/5)";
-                                boxPasswordTxt.Clear();
-                                boxPasswordTxt.Focus();
-                            }
+                            lblErrorTxt.ForeColor = Color.Red;
+                            lblErrorTxt.Text = $"Tài khoản hoặc mật khẩu không chính xác! ({failedLoginCount}/5)";
+                            boxPasswordTxt.Clear();
+                            boxPasswordTxt.Focus();
                         }
+                    }
+                    else
+                    {
+                        // Các lý do khác (ví dụ tài khoản đang đăng nhập ở nơi khác): hiện nguyên thông báo của server
+                        lblErrorTxt.ForeColor = Color.Red;
+                        lblErrorTxt.Text = message;
                     }
                 }
             }
             catch (Exception ex)
             {
                 lblErrorTxt.ForeColor = Color.Red;
-                lblErrorTxt.Text = $"Lỗi kết nối: {ex.Message}";
+                lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
             }
             finally
             {
@@ -237,7 +243,7 @@ namespace Battleship.Client
         }
 
         // === HÀM XỬ LÝ KHÓA ĐĂNG NHẬP 60 GIÂY ===
-        private async Task HandleLockoutAsync()
+        private async Task HandleLockoutAsync(int seconds = 60)
         {
             isLockedOut = true;
             btnLogin.Enabled = false;
@@ -246,7 +252,7 @@ namespace Battleship.Client
             lblErrorTxt.ForeColor = Color.Red;
 
             // Chạy đếm ngược 60 giây và cập nhật trực tiếp lên Label
-            for (int i = 60; i > 0; i--)
+            for (int i = seconds; i > 0; i--)
             {
                 lblErrorTxt.Text = $"Đăng nhập sai quá nhiều lần. Thử lại sau {i} giây.";
                 await Task.Delay(1000);
