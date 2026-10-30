@@ -1,0 +1,137 @@
+% PHẦN CỦA HOÀNG: Cloud, web service, đăng nhập an toàn. (Đức và Dũng KHÔNG sửa file này)
+% =====================================================
+\section{Cloud và Web Service}
+
+\begin{frame}{Vì Sao Chọn Supabase?}
+  \small
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabularx}{\textwidth}{@{}l Y Y Y@{}}
+    \toprule
+    \textbf{Tiêu chí} & \textbf{SQLite} & \textbf{Firebase} & \textbf{Supabase} \\
+    \midrule
+    Loại dữ liệu & File cục bộ (SQL) & NoSQL (Firestore) & \textbf{PostgreSQL} (SQL) \\
+    Dùng được EF Core hiện có & Có & \textbf{Không} (không có provider) & \textbf{Có} (Npgsql) \\
+    Web service có sẵn & Không & Có (SDK/REST) & \textbf{Có, REST tự sinh} \\
+    Cần Internet & Không & Có & Có \\
+    Công sức chuyển đổi & --- & Rất lớn (viết lại lớp dữ liệu) & \textbf{Nhỏ} (đổi provider) \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.3cm}
+  \begin{exampleblock}{Kết luận}
+    Supabase giữ nguyên mô hình quan hệ (Users, Matches, MatchDetails) và EF Core đã có, đồng thời cho \textbf{REST API} miễn phí. \textbf{SQLite vẫn giữ làm dự phòng} khi mất mạng.
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}{Kiến Trúc Sau Khi Thêm Cloud}
+  \centering
+  \begin{tikzpicture}[
+    box/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
+                minimum height=1.1cm, minimum width=3.0cm, font=\footnotesize},
+    cloud/.style={box, fill=paleblue},
+    arr/.style={-{Stealth[length=2.2mm]}, thick, color=brandblue},
+    lab/.style={font=\scriptsize, color=footernavy, fill=bgblue, inner sep=1pt}]
+    \node[box]   (cli) at (0,0)    {\textbf{Client WinForms}\\Login, Lobby, Bàn cờ};
+    \node[box]   (srv) at (5.2,0)  {\textbf{TCP Server C\#}\\Router, Handler};
+    \node[cloud] (pg)  at (10.4,0) {\textbf{Supabase}\\PostgreSQL};
+    \node[cloud] (api) at (10.4,-2.4) {\textbf{REST API}\\view \texttt{leaderboard}};
+    \node[box]   (lite) at (5.2,2.3) {\textbf{SQLite}\\(dự phòng offline)};
+
+    \draw[arr] (cli) -- node[lab,above] {TCP + AES-128} (srv);
+    \draw[arr] (srv) -- node[lab,above] {EF Core + Npgsql} (pg);
+    \draw[arr,dashed] (srv) -- node[lab,right] {đổi cấu hình} (lite);
+    \draw[arr] (api) -- (pg);
+    \draw[arr] (cli.south) |- node[lab,above,pos=0.75] {HTTPS + apikey} (api.west);
+  \end{tikzpicture}
+  \vspace{0.2cm}
+
+  \footnotesize Đường game đi qua \textbf{TCP Server}; đường web service đi thẳng từ Client tới \textbf{REST của Supabase}.
+\end{frame}
+
+\begin{frame}{Kết Nối Cơ Sở Dữ Liệu Với EF Core}
+  \begin{block}{Đổi nơi lưu trữ chỉ bằng cấu hình, không sửa code khi demo}
+    \begin{itemize}
+      \item \texttt{BATTLESHIP\_DB=supabase} $\rightarrow$ Server dùng \textbf{PostgreSQL} (Npgsql).
+      \item \texttt{BATTLESHIP\_DB=sqlite} (mặc định) $\rightarrow$ dùng \texttt{battleship.db} cục bộ.
+      \item Chuỗi kết nối đọc từ biến môi trường, \textbf{không nằm trong mã nguồn}.
+      \item Server \textbf{tự tạo bảng} (\texttt{EnsureCreated}) khi khởi động.
+    \end{itemize}
+  \end{block}
+  \begin{alertblock}{Lưu ý kỹ thuật}
+    Dùng chuỗi kết nối \textbf{Session pooler} của Supabase (hỗ trợ IPv4) và \texttt{SSL Mode=Require}.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Web Service: REST API Của Supabase}
+  \begin{block}{Mỗi bảng/view trong Supabase tự có một endpoint}
+    \texttt{GET https://<project>.supabase.co/rest/v1/leaderboard}\\
+    \texttt{\ \ \ \ \ ?select=*\&order=Score.desc\&limit=10}
+  \end{block}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Header bắt buộc}
+        \begin{itemize}
+          \item \texttt{apikey: <publishable key>} (bắt buộc)
+          \item Thiếu khóa $\rightarrow$ \textbf{401}; khóa đúng nhưng chưa có bảng $\rightarrow$ 404
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{exampleblock}{Phản hồi (JSON)}
+        \footnotesize
+        \texttt{[\{"Username":"admiral\_a",}\\
+        \texttt{\ \ "Wins":12,"Losses":3,}\\
+        \texttt{\ \ "Score":1200\}, ...]}
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+  \vspace{0.1cm}
+  \footnotesize Client C\# gọi bằng \texttt{HttpClient} và hiển thị lên \texttt{ListView} \textbf{Bảng xếp hạng}.
+\end{frame}
+
+\begin{frame}{Cơ Chế Đăng Nhập An Toàn}
+  \footnotesize
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabularx}{\textwidth}{@{}Y Y@{}}
+    \toprule
+    \textbf{Nguy cơ} & \textbf{Cách phòng thủ} \\
+    \midrule
+    Gửi gói tin khi chưa đăng nhập & Router \textbf{chặn} mọi gói, trừ Handshake/Login/Register \\
+    Dò mật khẩu hàng loạt & \textbf{Khóa 60 giây} sau 5 lần sai (theo IP và theo tài khoản) \\
+    Dữ liệu đầu vào xấu & Kiểm tra tên 3--20 ký tự, mật khẩu 6--64 ký tự \\
+    Một tài khoản đăng nhập nhiều nơi & Mỗi tài khoản \textbf{một phiên} tại một thời điểm \\
+    Giả mạo \textit{Admin} và \textit{admin} & So sánh tên \textbf{không phân biệt hoa thường} \\
+    Đoán tên tài khoản qua thời gian trả lời & Luôn chạy BCrypt, thông báo lỗi \textbf{chung chung} \\
+    Lộ mật khẩu khi lưu trữ & Chỉ lưu chuỗi băm \textbf{BCrypt} (có muối) \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.15cm}
+  \begin{exampleblock}{Kiểm thử}
+    \footnotesize 19 kịch bản tấn công qua TCP, chạy trên server thật: \textbf{đều đạt}.
+  \end{exampleblock}
+\end{frame}
+
+\begin{frame}{Bảo Mật Dữ Liệu}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \begin{block}{Nhiều lớp bảo vệ}
+        \footnotesize
+        \begin{itemize}
+          \item \textbf{Đường truyền game:} gói tin TCP mã hóa \textbf{AES-128}.
+          \item \textbf{Mật khẩu:} chỉ lưu chuỗi băm \textbf{BCrypt}.
+          \item \textbf{Supabase:} bật \textbf{Row Level Security}, thu quyền công khai trên bảng gốc.
+          \item \textbf{Web service:} chỉ mở \textbf{view} \texttt{leaderboard}, không có cột mật khẩu.
+          \item \textbf{Khóa:} Client chỉ giữ \texttt{publishable key}; mật khẩu DB nằm trong biến môi trường, \textbf{không commit}.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.40\textwidth}
+      \centering
+      \slideimg[\textwidth]{02-rest-blocked.png}{Nhật ký Supabase}
+      \par\vspace{2pt}\scriptsize Đọc thẳng bảng \texttt{Users} bằng khóa công khai bị Postgres từ chối: \texttt{permission denied} (mã 42501).
+    \end{column}
+  \end{columns}
+  \vspace{0.1cm}
+  \begin{alertblock}{Vì sao phải khóa bảng gốc?}
+    \footnotesize Supabase mặc định mở REST cho mọi bảng. Nếu không bật RLS, ai có \texttt{publishable key} đều đọc được cột mật khẩu băm của mọi người chơi.
+  \end{alertblock}
+\end{frame}

@@ -1,0 +1,94 @@
+% ============================================================
+% PHẦN: CƠ SỞ DỮ LIỆU VÀ GIAO DIỆN  (4 slide)
+% Cấu trúc và ảnh chụp lấy từ nhánh dung/slides-phan-dung (Thành viên B: Dũng).
+% Nội dung chữ đã ĐỐI CHIẾU với code thật và sửa các chỗ không đúng sự thật
+% (tên bảng, cột Elo, "real-time", bên gọi REST...). Ảnh đều là ảnh chụp thật.
+% ============================================================
+\section{Cơ Sở Dữ Liệu Và Giao Diện}
+
+% ---------- Slide: ERD ----------
+\begin{frame}{Mô Hình Dữ Liệu (ERD)}
+  \centering
+  \begin{tikzpicture}[
+    ent/.style={draw=inkblue, fill=white, rounded corners=2pt, thick, align=left,
+                font=\scriptsize, inner sep=5pt},
+    arr/.style={thick, color=brandblue}]
+    \node[ent] (u) at (0,0)    {\textbf{Users}\\[2pt]\underline{Id} (PK)\\Username (UNIQUE)\\Password (BCrypt)\\Wins, Losses, Score\\Condition\\UserId (FK, bạn bè)};
+    \node[ent] (m) at (5.4,0)  {\textbf{Matches}\\[2pt]\underline{Id} (PK)\\Player1Id (FK)\\Player2Id (FK)\\WinnerId (FK)\\StartTime, EndTime};
+    \node[ent] (d) at (10.8,0) {\textbf{MatchDetails}\\[2pt]\underline{Id} (PK)\\MatchId (FK)\\PlayerId (FK)\\X\_Coordinate, Y\_Coordinate\\IsHit, TurnTime};
+
+    \draw[arr] (u) -- node[above,font=\scriptsize]{1 -- N} (m);
+    \draw[arr] (m) -- node[above,font=\scriptsize]{1 -- N} (d);
+
+    \coordinate (ua) at ($(u.south)+(0,-1.1)$);
+    \coordinate (da) at ($(d.south)+(0,-1.1)$);
+    \draw[arr] (u.south) -- (ua) -- node[below,font=\scriptsize]{1 -- N} (da) -- (d.south);
+  \end{tikzpicture}
+
+  \vspace{0.3cm}
+  \footnotesize
+  Một người chơi có nhiều trận; một trận có nhiều lượt bắn (\textbf{MatchDetails}). Mật khẩu chỉ lưu dạng \textbf{BCrypt}.\\
+  \textbf{Đang phát triển:} ghi kết quả trận và lịch sử lượt bắn vào hai bảng \textit{Matches}, \textit{MatchDetails}.
+\end{frame}
+
+% ---------- Slide: đăng nhập + chống dò mật khẩu ----------
+\begin{frame}{Đăng Nhập Và Chống Dò Mật Khẩu}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \centering
+      \slideimg[0.85\textwidth]{04-client-login.png}{Màn hình đăng nhập}
+      \par\vspace{2pt}\scriptsize Client gửi \texttt{LoginRequestDto} qua TCP; server đối chiếu với CSDL.
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \centering
+      \slideimg[0.85\textwidth]{07-login-lockout.png}{Thông báo khóa}
+      \par\vspace{2pt}\scriptsize Sai 5 lần: server khóa 60 giây, Client hiện đếm ngược.
+    \end{column}
+  \end{columns}
+  \vspace{0.25cm}
+  \begin{exampleblock}{Ý nghĩa}
+    \footnotesize Khóa theo IP và theo tài khoản: chặn dò mật khẩu hàng loạt và giảm truy vấn rác xuống CSDL.
+  \end{exampleblock}
+\end{frame}
+
+% ---------- Slide: lobby ----------
+\begin{frame}{Sảnh Chờ (Lobby)}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \centering
+      \slideimg[\textwidth]{05-client-lobby.png}{Giao diện Lobby}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Đã hoạt động}
+        \begin{itemize}
+          \item \textbf{Join Room}: xem danh sách phòng từ server.
+          \item \textbf{Leader Board}: bảng xếp hạng từ Supabase.
+          \item \textbf{Profile}: thông tin người chơi.
+        \end{itemize}
+      \end{block}
+      \begin{alertblock}{Đang phát triển}
+        \footnotesize \textbf{Find Opponent} (ghép trận) và \textbf{Create Room}: đang nối vào giao diện.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Slide: bảng xếp hạng ----------
+\begin{frame}{Bảng Xếp Hạng}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Lấy dữ liệu qua web service}
+        \begin{itemize}
+          \item Client gọi \textbf{REST của Supabase} bằng \texttt{HttpClient}, đọc view \texttt{leaderboard}.
+          \item Sắp xếp \textbf{điểm giảm dần}; bằng điểm thì ai thắng nhiều hơn đứng trước.
+          \item Nút \textbf{Làm mới} tải lại; mất mạng thì báo lỗi nhẹ, \textbf{không làm sập ứng dụng}.
+          \item View chỉ có 4 cột, \textbf{không có mật khẩu}.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \centering
+      \slideimg[\textwidth]{06-client-leaderboard.png}{Form Bảng xếp hạng}
+    \end{column}
+  \end{columns}
+\end{frame}
