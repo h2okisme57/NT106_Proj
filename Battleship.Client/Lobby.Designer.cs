@@ -37,6 +37,7 @@
             lblBattleshiptxt = new Label();
             contextMenuStrip1 = new ContextMenuStrip(components);
             boxChat = new TextBox();
+            btnLeaderBoard = new Button();
             SuspendLayout();
             // 
             // btnFindRoom
@@ -71,7 +72,7 @@
             // 
             // btnQuit
             // 
-            btnQuit.Location = new Point(0, 441);
+            btnQuit.Location = new Point(0, 480);
             btnQuit.Name = "btnQuit";
             btnQuit.Size = new Size(344, 33);
             btnQuit.TabIndex = 3;
@@ -81,7 +82,7 @@
             // 
             // btnProfile
             // 
-            btnProfile.Location = new Point(0, 538);
+            btnProfile.Location = new Point(3, 594);
             btnProfile.Name = "btnProfile";
             btnProfile.Size = new Size(192, 44);
             btnProfile.TabIndex = 4;
@@ -118,12 +119,23 @@
             boxChat.TabIndex = 8;
             boxChat.TextChanged += textBox1_TextChanged;
             // 
+            // btnLeaderBoard
+            // 
+            btnLeaderBoard.Location = new Point(0, 441);
+            btnLeaderBoard.Name = "btnLeaderBoard";
+            btnLeaderBoard.Size = new Size(344, 33);
+            btnLeaderBoard.TabIndex = 10;
+            btnLeaderBoard.Text = "Leader Board                    ";
+            btnLeaderBoard.UseVisualStyleBackColor = true;
+            btnLeaderBoard.Click += btnLeaderBoard_Click_1;
+            // 
             // Lobby
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.sonia_wisniewska_background_4k;
             BackgroundImageLayout = ImageLayout.Stretch;
+            Controls.Add(btnLeaderBoard);
             Controls.Add(boxChat);
             Controls.Add(lblBattleshiptxt);
             Controls.Add(btnProfile);
@@ -134,6 +146,8 @@
             Name = "Lobby";
             Size = new Size(978, 641);
             Load += Lobby_Load_1;
+            Click += Lobby_Click;
+            DoubleClick += Lobby_Click;
             ResumeLayout(false);
             PerformLayout();
         }
@@ -148,5 +162,6 @@
         private Label lblBattleshiptxt;
         private ContextMenuStrip contextMenuStrip1;
         private TextBox boxChat;
+        private Button btnLeaderBoard;
     }
 }
