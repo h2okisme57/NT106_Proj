@@ -1,26 +1,19 @@
 % ============================================================
-% PHẦN CỦA DŨNG: CƠ SỞ DỮ LIỆU VÀ GIAO DIỆN  (4 slide)
-% ------------------------------------------------------------
-% CÁCH LÀM:
-%  1. CHỈ sửa file này (parts/03_csdl_dung.tex) và bỏ ảnh vào thư mục images/.
-%     Đừng sửa slide_demo.tex hay file của người khác (tránh conflict).
-%  2. Nội dung bên dưới là BẢN NHÁP do Hoàng soạn từ code. Dũng đọc, SỬA CHO ĐÚNG với code
-%     của mình, xóa ý nào không đúng. Chỗ có dấu  %%% DŨNG KIỂM TRA  là chỗ cần xem kỹ.
-%  3. Ảnh: xem docs/slides/images/README.md, đặt đúng TÊN FILE như khung xám ghi.
-%     Chưa có ảnh thì khung xám vẫn hiện, biên dịch vẫn chạy.
-%  4. Mỗi slide ~ 40 giây khi nói. Chữ ngắn gọn, mỗi ý 1 dòng, đừng viết cả đoạn văn.
-%  5. Chỉ ghi những gì ĐÃ LÀM THẬT. Chưa làm thì ghi rõ "đang phát triển".
+% PHẦN: CƠ SỞ DỮ LIỆU VÀ GIAO DIỆN  (4 slide)
+% Cấu trúc và ảnh chụp lấy từ nhánh dung/slides-phan-dung (Thành viên B: Dũng).
+% Nội dung chữ đã ĐỐI CHIẾU với code thật và sửa các chỗ không đúng sự thật
+% (tên bảng, cột Elo, "real-time", bên gọi REST...). Ảnh đều là ảnh chụp thật.
 % ============================================================
 \section{Cơ Sở Dữ Liệu Và Giao Diện}
 
-% ---------- Slide 1: ERD ----------
+% ---------- Slide: ERD ----------
 \begin{frame}{Mô Hình Dữ Liệu (ERD)}
   \centering
   \begin{tikzpicture}[
     ent/.style={draw=inkblue, fill=white, rounded corners=2pt, thick, align=left,
                 font=\scriptsize, inner sep=5pt},
     arr/.style={thick, color=brandblue}]
-    \node[ent] (u) at (0,0)    {\textbf{Users}\\[2pt]\underline{Id} (PK)\\Username (UNIQUE)\\Password (BCrypt)\\Wins, Losses, Score\\Condition};
+    \node[ent] (u) at (0,0)    {\textbf{Users}\\[2pt]\underline{Id} (PK)\\Username (UNIQUE)\\Password (BCrypt)\\Wins, Losses, Score\\Condition\\UserId (FK, bạn bè)};
     \node[ent] (m) at (5.4,0)  {\textbf{Matches}\\[2pt]\underline{Id} (PK)\\Player1Id (FK)\\Player2Id (FK)\\WinnerId (FK)\\StartTime, EndTime};
     \node[ent] (d) at (10.8,0) {\textbf{MatchDetails}\\[2pt]\underline{Id} (PK)\\MatchId (FK)\\PlayerId (FK)\\X\_Coordinate, Y\_Coordinate\\IsHit, TurnTime};
 
@@ -34,56 +27,68 @@
 
   \vspace{0.3cm}
   \footnotesize
-  %%% DŨNG KIỂM TRA: đúng với Models/*.cs trên main chưa? Có quan hệ bạn bè (Friend) thì nói thêm ở đây.
-  Một người chơi có nhiều trận; một trận có nhiều lượt bắn (\textbf{MatchDetails}); mật khẩu chỉ lưu dạng \textbf{BCrypt}.
+  Một người chơi có nhiều trận; một trận có nhiều lượt bắn (\textbf{MatchDetails}). Mật khẩu chỉ lưu dạng \textbf{BCrypt}.\\
+  \textbf{Đang phát triển:} ghi kết quả trận và lịch sử lượt bắn vào hai bảng \textit{Matches}, \textit{MatchDetails}.
 \end{frame}
 
-% ---------- Slide 2: dữ liệu thật ----------
-\begin{frame}{Dữ Liệu Thật Trên Supabase}
+% ---------- Slide: đăng nhập + chống dò mật khẩu ----------
+\begin{frame}{Đăng Nhập Và Chống Dò Mật Khẩu}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
       \centering
-      \slideimg[\textwidth]{01-supabase-tables.png}{Supabase Table Editor, bảng Users có vài dòng, cột Password là chuỗi bắt đầu bằng \$2a\$}
-      \par\vspace{2pt}\scriptsize Dữ liệu ghi từ game, mật khẩu là chuỗi băm.
+      \slideimg[0.85\textwidth]{04-client-login.png}{Màn hình đăng nhập}
+      \par\vspace{2pt}\scriptsize Client gửi \texttt{LoginRequestDto} qua TCP; server đối chiếu với CSDL.
     \end{column}
     \begin{column}{0.48\textwidth}
       \centering
-      \slideimg[\textwidth]{03-rest-json.png}{Cửa sổ PowerShell chạy demo\_rest.ps1: bảng xếp hạng và JSON}
-      \par\vspace{2pt}\scriptsize Cùng dữ liệu đó, đọc qua web service (REST).
+      \slideimg[0.85\textwidth]{07-login-lockout.png}{Thông báo khóa}
+      \par\vspace{2pt}\scriptsize Sai 5 lần: server khóa 60 giây, Client hiện đếm ngược.
+    \end{column}
+  \end{columns}
+  \vspace{0.25cm}
+  \begin{exampleblock}{Ý nghĩa}
+    \footnotesize Khóa theo IP và theo tài khoản: chặn dò mật khẩu hàng loạt và giảm truy vấn rác xuống CSDL.
+  \end{exampleblock}
+\end{frame}
+
+% ---------- Slide: lobby ----------
+\begin{frame}{Sảnh Chờ (Lobby)}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \centering
+      \slideimg[\textwidth]{05-client-lobby.png}{Giao diện Lobby}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Đã hoạt động}
+        \begin{itemize}
+          \item \textbf{Join Room}: xem danh sách phòng từ server.
+          \item \textbf{Leader Board}: bảng xếp hạng từ Supabase.
+          \item \textbf{Profile}: thông tin người chơi.
+        \end{itemize}
+      \end{block}
+      \begin{alertblock}{Đang phát triển}
+        \footnotesize \textbf{Find Opponent} (ghép trận) và \textbf{Create Room}: đang nối vào giao diện.
+      \end{alertblock}
     \end{column}
   \end{columns}
 \end{frame}
 
-% ---------- Slide 3: RLS ----------
-\begin{frame}{Row Level Security: Khóa Bảng Gốc}
+% ---------- Slide: bảng xếp hạng ----------
+\begin{frame}{Bảng Xếp Hạng}
   \begin{columns}[T]
-    \begin{column}{0.50\textwidth}
-      \begin{block}{Vấn đề và cách xử lý}
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Lấy dữ liệu qua web service}
         \begin{itemize}
-          \item Supabase \textbf{mặc định mở REST} cho mọi bảng.
-          \item Chưa khóa thì ai có khóa công khai đều \textbf{đọc được cột mật khẩu băm}.
-          \item Đã bật \textbf{RLS}, thu quyền trên 3 bảng gốc.
-          \item Chỉ mở \textbf{view} \texttt{leaderboard} (4 cột, không có Password).
+          \item Client gọi \textbf{REST của Supabase} bằng \texttt{HttpClient}, đọc view \texttt{leaderboard}.
+          \item Sắp xếp \textbf{điểm giảm dần}; bằng điểm thì ai thắng nhiều hơn đứng trước.
+          \item Nút \textbf{Làm mới} tải lại; mất mạng thì báo lỗi nhẹ, \textbf{không làm sập ứng dụng}.
+          \item View chỉ có 4 cột, \textbf{không có mật khẩu}.
         \end{itemize}
       \end{block}
     \end{column}
-    \begin{column}{0.46\textwidth}
+    \begin{column}{0.44\textwidth}
       \centering
-      \slideimg[\textwidth]{02-rest-blocked.png}{Kết quả bước [4] của demo\_rest.ps1: dòng "Bị chặn: HTTP 401" khi đọc thẳng bảng Users}
+      \slideimg[\textwidth]{06-client-leaderboard.png}{Form Bảng xếp hạng}
     \end{column}
   \end{columns}
-\end{frame}
-
-% ---------- Slide 4: giao diện ----------
-\begin{frame}{Giao Diện Ứng Dụng Client}
-  \centering
-  \slideimg[0.23\textwidth]{04-client-login.png}{Màn hình Đăng nhập}\hfill
-  \slideimg[0.23\textwidth]{05-client-lobby.png}{Màn hình Lobby}\hfill
-  \slideimg[0.23\textwidth]{06-client-leaderboard.png}{Form Bảng xếp hạng (bỏ nếu chưa có nút)}\hfill
-  \slideimg[0.23\textwidth]{07-login-lockout.png}{Thông báo khi nhập sai mật khẩu 5 lần}
-
-  \vspace{0.3cm}
-  \footnotesize
-  %%% DŨNG KIỂM TRA: ghi tên công nghệ giao diện đúng (WinForms, GDI+...). Slide nào chưa có ảnh thì XÓA khung đó đi.
-  Giao diện \textbf{WinForms}: đăng ký, đăng nhập, sảnh chờ, danh sách phòng, bảng xếp hạng.
 \end{frame}

@@ -111,16 +111,27 @@
 \end{frame}
 
 \begin{frame}{Bảo Mật Dữ Liệu}
-  \begin{block}{Nhiều lớp bảo vệ}
-    \begin{itemize}
-      \item \textbf{Trên đường truyền game:} gói tin TCP mã hóa \textbf{AES-128}.
-      \item \textbf{Mật khẩu:} chỉ lưu chuỗi băm \textbf{BCrypt}, không lưu chữ rõ.
-      \item \textbf{Supabase:} bật \textbf{Row Level Security}, thu quyền khóa công khai trên bảng gốc.
-      \item \textbf{Web service:} chỉ mở \textbf{view} \texttt{leaderboard} (không có cột mật khẩu).
-      \item \textbf{Khóa:} chỉ \texttt{publishable key} ở Client; \texttt{service\_role key} và mật khẩu DB nằm trong biến môi trường, \textbf{không commit}.
-    \end{itemize}
-  \end{block}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \begin{block}{Nhiều lớp bảo vệ}
+        \footnotesize
+        \begin{itemize}
+          \item \textbf{Đường truyền game:} gói tin TCP mã hóa \textbf{AES-128}.
+          \item \textbf{Mật khẩu:} chỉ lưu chuỗi băm \textbf{BCrypt}.
+          \item \textbf{Supabase:} bật \textbf{Row Level Security}, thu quyền công khai trên bảng gốc.
+          \item \textbf{Web service:} chỉ mở \textbf{view} \texttt{leaderboard}, không có cột mật khẩu.
+          \item \textbf{Khóa:} Client chỉ giữ \texttt{publishable key}; mật khẩu DB nằm trong biến môi trường, \textbf{không commit}.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.40\textwidth}
+      \centering
+      \slideimg[\textwidth]{02-rest-blocked.png}{Nhật ký Supabase}
+      \par\vspace{2pt}\scriptsize Đọc thẳng bảng \texttt{Users} bằng khóa công khai bị Postgres từ chối: \texttt{permission denied} (mã 42501).
+    \end{column}
+  \end{columns}
+  \vspace{0.1cm}
   \begin{alertblock}{Vì sao phải khóa bảng gốc?}
-    Supabase mặc định mở REST cho mọi bảng. Nếu không bật RLS, ai có \texttt{publishable key} đều đọc được cột mật khẩu băm của mọi người chơi.
+    \footnotesize Supabase mặc định mở REST cho mọi bảng. Nếu không bật RLS, ai có \texttt{publishable key} đều đọc được cột mật khẩu băm của mọi người chơi.
   \end{alertblock}
 \end{frame}

@@ -1,100 +1,109 @@
 % ============================================================
-% PHẦN CỦA ĐỨC: KIẾN TRÚC SERVER VÀ GAME  (4 slide)
-% ------------------------------------------------------------
-% CÁCH LÀM:
-%  1. CHỈ sửa file này (parts/02_server_duc.tex) và bỏ ảnh vào thư mục images/.
-%     Đừng sửa slide_demo.tex hay file của người khác (tránh conflict).
-%  2. Nội dung bên dưới là BẢN NHÁP do Hoàng soạn từ code. Đức đọc, SỬA CHO ĐÚNG với code
-%     của mình, xóa ý nào không đúng. Chỗ có dấu  %%% ĐỨC KIỂM TRA  là chỗ cần xem kỹ.
-%  3. Ảnh: xem docs/slides/images/README.md, đặt đúng TÊN FILE như khung xám ghi.
-%     Chưa có ảnh thì khung xám vẫn hiện, biên dịch vẫn chạy.
-%  4. Mỗi slide ~ 40 giây khi nói. Chữ ngắn gọn, mỗi ý 1 dòng, đừng viết cả đoạn văn.
-%  5. Chỉ ghi những gì ĐÃ LÀM THẬT. Chưa làm thì ghi rõ "đang phát triển".
+% PHẦN: KIẾN TRÚC SERVER VÀ GAME  (4 slide)
+% Nội dung lấy từ file "Kiến Trúc Server & Hướng Dẫn Của Đức.pptx" (Thành viên A: Đức),
+% đã ĐỐI CHIẾU với code thật trên main (TcpServer.cs, ClientSession.cs, RoomManager.cs, RoomHandler.cs).
+% Chỉ ghi những gì đã hiện thực; phần chưa xong ghi rõ "đang phát triển".
 % ============================================================
 \section{Kiến Trúc Server Và Game}
 
-% ---------- Slide 1 ----------
-\begin{frame}{Kiến Trúc TCP Server}
+% ---------- Slide: lõi TCP ----------
+\begin{frame}{Lõi TCP Và Quản Lý Phiên}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
-      \begin{block}{Cách server hoạt động}
+      \begin{block}{Cách server xử lý kết nối}
         \begin{itemize}
-          \item \texttt{TcpListener} nhận kết nối, \textbf{mỗi client một Task} (async/await).
-          \item \texttt{ClientSession}: đọc gói theo \textbf{framing 4-byte}, gửi có khóa chống xen byte.
-          \item \texttt{PacketRouter}: mỗi loại gói có một \textbf{handler} đăng ký riêng.
-          \item Danh sách người online dùng \texttt{ConcurrentDictionary} (an toàn đa luồng).
+          \item \texttt{TcpListener} lắng nghe bất đồng bộ, \textbf{mỗi client một Task} riêng.
+          \item \textbf{Framing 4-byte}: đọc đủ \texttt{PayloadLength} rồi mới giải mã gói.
+          \item \textbf{Khóa luồng gửi} \texttt{SemaphoreSlim(1,1)}: chặn hai Task ghi xen kẽ byte vào cùng một stream.
+          \item \texttt{PacketRouter} chuyển gói tới từng \texttt{IPacketHandler} đã đăng ký.
         \end{itemize}
       \end{block}
-      \footnotesize %%% ĐỨC KIỂM TRA: có muốn thêm ý nào về xử lý ngắt kết nối đột ngột không?
     \end{column}
     \begin{column}{0.44\textwidth}
       \centering
-      \slideimg[\textwidth]{10-server-log.png}{Cửa sổ Server đang chạy: có dòng "Đang dùng: Supabase" và "Đang lắng nghe tại cổng 8000"}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ---------- Slide 2 ----------
-\begin{frame}{Quản Lý Phòng Và State Machine}
-  \begin{columns}[T]
-    \begin{column}{0.40\textwidth}
-      \begin{block}{\texttt{RoomManager}}
-        \begin{itemize}
-          \item \texttt{ConcurrentDictionary} chứa các phòng.
-          \item \textbf{Khóa riêng từng phòng} (\texttt{lock}) chống 2 người vào cùng lúc.
-          \item Chủ phòng mới được \textbf{kick}.
-          \item \textbf{Server là bên quyết định} (server-authoritative).
-        \end{itemize}
-      \end{block}
-    \end{column}
-    \begin{column}{0.56\textwidth}
-      % Sơ đồ trạng thái. Nét liền = ĐÃ code. Nét đứt = đã thiết kế, đang phát triển.
-      % %%% ĐỨC KIỂM TRA: nếu đã code thêm chuyển trạng thái nào thì đổi nét đứt thành nét liền.
       \begin{tikzpicture}[
-        st/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
-                   minimum height=0.8cm, minimum width=2.0cm, font=\scriptsize},
-        ok/.style={-{Stealth[length=2mm]}, thick, color=brandblue},
-        todo/.style={-{Stealth[length=2mm]}, thick, color=skyblue, dashed}]
-        \node[st, fill=paleblue] (a) at (0,0)    {Chờ\\người chơi};
-        \node[st, fill=paleblue] (b) at (0,-2.4) {Xếp tàu};
-        \node[st] (c) at (3.6,-2.4) {Sẵn sàng\\(Ready)};
-        \node[st] (d) at (3.6,-0.8) {Đánh\\theo lượt};
-        \node[st] (e) at (3.6,0.8)  {Kết thúc};
-        \draw[ok]   (a.south west) to[bend right=35]  node[left,font=\tiny,pos=0.5]{đủ 2 người} (b.north west);
-        \draw[ok]   (b.north east) to[bend right=35]  node[right,font=\tiny,pos=0.5]{có người thoát} (a.south east);
-        \draw[todo] (b) -- (c);
-        \draw[todo] (c) -- (d);
-        \draw[todo] (d) -- (e);
+        flow/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
+                     minimum height=0.85cm, minimum width=5.2cm, font=\scriptsize},
+        arr/.style={-{Stealth[length=2mm]}, thick, color=brandblue}]
+        \node[flow, fill=paleblue] (a) at (0,0)     {1. \texttt{NetworkStream} $\rightarrow$ \texttt{PacketFraming} (4-byte)};
+        \node[flow] (b) at (0,-1.45) {2. \texttt{ClientSession.OnPacketReceived}};
+        \node[flow] (c) at (0,-2.9)  {3. \texttt{PacketRouter.RouteAsync(session, pkt)}};
+        \node[flow, fill=paleblue] (d) at (0,-4.35) {4. \texttt{RoomHandler.HandleAsync(session, pkt)}};
+        \draw[arr] (a) -- (b);
+        \draw[arr] (b) -- (c);
+        \draw[arr] (c) -- (d);
       \end{tikzpicture}
 
       \vspace{0.1cm}
-      \scriptsize \textbf{Nét liền:} đã hiện thực. \textbf{Nét đứt:} đã thiết kế, đang phát triển.
+      \scriptsize Luồng đi của một gói tin tại server.
     \end{column}
   \end{columns}
 \end{frame}
 
-% ---------- Slide 3 ----------
-\begin{frame}{Phòng Đấu Trong Ứng Dụng}
+% ---------- Slide: quản lý phòng ----------
+\begin{frame}{Quản Lý Phòng Đấu}
   \begin{columns}[T]
-    \begin{column}{0.40\textwidth}
-      \begin{block}{Chức năng đã có (\texttt{RoomHandler})}
+    \begin{column}{0.50\textwidth}
+      \begin{block}{\texttt{RoomManager}}
         \begin{itemize}
-          \item Lấy \textbf{danh sách phòng}.
-          \item \textbf{Tạo phòng} bằng ID.
-          \item \textbf{Vào phòng}, \textbf{rời phòng}.
+          \item \texttt{ConcurrentDictionary}: lưu danh sách phòng an toàn đa luồng.
+          \item \textbf{Khóa riêng từng phòng}: hai người vào cùng một lúc không bị lỗi.
+          \item \textbf{Host thoát} thì phòng bị giải tán và người còn lại được báo (\texttt{RoomUpdate}).
         \end{itemize}
-        %%% ĐỨC KIỂM TRA: đúng với RoomHandler hiện tại chưa? Có Kick/Spectator chưa? Sửa lại cho khớp.
       \end{block}
     \end{column}
-    \begin{column}{0.56\textwidth}
-      \centering
-      \slideimg[0.95\textwidth]{11-room-list.png}{Màn hình "Join Room" ở Client có danh sách phòng}
+    \begin{column}{0.46\textwidth}
+      \footnotesize
+      \renewcommand{\arraystretch}{1.25}
+      \begin{tabularx}{\textwidth}{@{}Y Y@{}}
+        \toprule
+        \textbf{Gói tin} & \textbf{Chức năng} \\
+        \midrule
+        \texttt{GetRoomListRequest} & Danh sách phòng \\
+        \texttt{CreateRoomRequest} & Tạo phòng bằng ID \\
+        \texttt{JoinRoomRequest} & Vào phòng \\
+        \texttt{LeaveRoom} & Rời phòng \\
+        \bottomrule
+      \end{tabularx}
+      \vspace{0.15cm}
+
+      \scriptsize \textbf{Đang phát triển:} nối chức năng Kick (đã có ở \texttt{RoomManager}) vào gói tin.
     \end{column}
   \end{columns}
 \end{frame}
 
-% ---------- Slide 4 (TÙY CHỌN: không có ảnh thì XÓA slide này) ----------
-\begin{frame}{Bản Thiết Kế State Machine Đầy Đủ}
+% ---------- Slide: state machine ----------
+\begin{frame}{Máy Trạng Thái Của Phòng Đấu}
   \centering
-  \slideimg[0.7\textwidth]{12-state-machine.png}{Hình sơ đồ State Machine (Placement, Ready, Turn-based, Timeout) Đức đã vẽ, đang nằm ở README trên GitHub}
+  \vspace{0.6cm}
+  \slideimg[0.97\textwidth]{12-state-machine.png}{Sơ đồ State Machine}
+
+  \vspace{0.4cm}
+  \footnotesize Hai trạng thái đầu \textbf{đã hiện thực}; ba trạng thái sau đang phát triển.
+\end{frame}
+
+% ---------- Slide: bảo mật + ngắt kết nối ----------
+\begin{frame}{Bảo Mật Và Xử Lý Ngắt Kết Nối}
+  \begin{columns}[T]
+    \begin{column}{0.49\textwidth}
+      \begin{block}{Dọn dẹp khi đứt mạng}
+        \begin{itemize}
+          \item Bắt \texttt{IOException} và \texttt{SocketException} \textbf{riêng biệt}.
+          \item Khối \texttt{finally} luôn gọi \texttt{Cleanup()} để đóng luồng mạng.
+          \item Sự kiện \texttt{OnDisconnected}: xóa khỏi danh sách online và \textbf{báo Offline} cho mọi người.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \begin{exampleblock}{Mã hóa đường truyền}
+        \begin{itemize}
+          \item Toàn bộ payload JSON qua TCP được mã hóa \textbf{AES-128}.
+          \item Gói chữ rõ không có khóa bị server \textbf{đóng kết nối}.
+        \end{itemize}
+      \end{exampleblock}
+      \begin{alertblock}{Đang phát triển}
+        \footnotesize Tự động cho người chơi rời phòng khi mất mạng giữa chừng.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
 \end{frame}
