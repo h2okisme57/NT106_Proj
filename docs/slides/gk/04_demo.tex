@@ -1,0 +1,32 @@
+% ============================================================
+% DEMO: kịch bản demo giữa kỳ (cô yêu cầu có demo). Bước 7 chỉ làm được sau khi xong gameplay.
+% Chi tiết từng bước: docs/QuyTrinh_Demo.md
+% ============================================================
+\section{Demo}
+
+\begin{frame}{Kịch Bản Demo}
+  \begin{columns}[T]
+    \begin{column}{0.62\textwidth}
+      \footnotesize
+      \begin{tabularx}{\textwidth}{@{}c Y c@{}}
+        \toprule \textbf{\#} & \textbf{Việc làm và kết quả mong đợi} & \textbf{Hiện tại} \\ \midrule
+        1 & Chạy Server: in ``Đang dùng: Supabase'' và ``Đang lắng nghe tại cổng 8000'' & \textcolor{green!50!black}{Chạy} \\
+        2 & Đăng ký hai tài khoản; trên Supabase mật khẩu là chuỗi BCrypt & \textcolor{green!50!black}{Chạy} \\
+        3 & Đăng nhập; sai 5 lần thì khóa 60 giây có đếm ngược & \textcolor{green!50!black}{Chạy} \\
+        4 & Hai Client vào Lobby, chat sảnh, thấy nhau Online & \textcolor{green!50!black}{Chạy} \\
+        5 & Cả hai bấm ``Find Opponent'': Server ghép cặp, hai bên vào phòng chờ & \textcolor{green!50!black}{Chạy} \\
+        6 & Mở bảng xếp hạng (REST Supabase) & \textcolor{green!50!black}{Chạy} \\
+        7 & Chơi một trận: xếp tàu, bắn, Radar; kết quả hiện trên Discord & \textcolor{gray}{Chưa} \\
+        \bottomrule
+      \end{tabularx}
+      \vspace{0.1cm}
+
+      \scriptsize Chạy trên cùng một máy (hai cửa sổ Client). Có phương án dự phòng chạy bằng SQLite khi mất mạng.
+    \end{column}
+    \begin{column}{0.34\textwidth}
+      \centering
+      % [ẢNH] cửa sổ Server khi khởi động
+      \slideimg[\textwidth]{10-server-log.png}{Cửa sổ Server: dòng ``Đang dùng: Supabase'' và ``Đang lắng nghe tại cổng 8000''}
+    \end{column}
+  \end{columns}
+\end{frame}
