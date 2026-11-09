@@ -54,6 +54,80 @@
   \par\vspace{0.1cm}\scriptsize Mũi tên giữa các nhóm thể hiện thứ tự dùng. Server là bên xử lý mọi yêu cầu.
 \end{frame}
 
+% ---------- Phân quyền ----------
+\begin{frame}{Các Vai Trò Và Phân Quyền}
+  \footnotesize
+  \begin{tabularx}{\textwidth}{@{}Y c c c@{}}
+    \toprule
+    \textbf{Chức năng} & \textbf{Người chơi} & \textbf{Chủ phòng} & \textbf{Người vận hành} \\
+    \midrule
+    Đăng ký, đăng nhập, xem Online & $\checkmark$ & $\checkmark$ & \\
+    Chat sảnh, xem bảng xếp hạng & $\checkmark$ & $\checkmark$ & \\
+    Tạo phòng, vào phòng, tìm trận & $\checkmark$ & $\checkmark$ & \\
+    Chơi trận (xếp tàu, bắn, Radar) & $\checkmark$ & $\checkmark$ & \\
+    \textbf{Kick thành viên khỏi phòng} & & $\checkmark$ & \\
+    Chạy Server, chọn cơ sở dữ liệu, xem log & & & $\checkmark$ \\
+    Quản lý dữ liệu trên Supabase & & & $\checkmark$ \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.2cm}
+  \begin{alertblock}{Ghi chú}
+    \scriptsize \textbf{Chủ phòng} là người tạo phòng (hoặc người đứng đầu hàng đợi khi ghép trận), có thêm quyền kick; Server kiểm tra quyền này, Client không tự quyết. \textbf{Người vận hành} là nhóm phát triển, thao tác trực tiếp trên Server và Supabase. Hệ thống \textbf{không có tài khoản admin} trong phạm vi đề tài.
+  \end{alertblock}
+\end{frame}
+
+% ---------- DFD mức 0 ----------
+\begin{frame}{Lược Đồ Dòng Dữ Liệu (DFD) Mức 0}
+  \centering
+  \begin{tikzpicture}[
+    ent/.style={draw=inkblue, fill=gold!40, thick, minimum width=2.6cm, minimum height=1cm, align=center, font=\scriptsize},
+    proc/.style={draw=inkblue, fill=paleblue, thick, circle, minimum size=2.9cm, align=center, font=\small\bfseries},
+    store/.style={draw=inkblue, fill=white, thick, minimum width=3cm, minimum height=0.9cm, align=center, font=\scriptsize},
+    flow/.style={-{Stealth[length=2mm]}, thick, color=brandblue},
+    lab/.style={font=\tiny, fill=bgblue, inner sep=1pt, align=center}]
+    \node[proc] (p) at (0,0) {Hệ thống\\Battleship};
+    \node[ent] (u) at (-5.6,0.6) {Người chơi};
+    \node[ent] (o) at (-5.6,-1.8) {Người vận hành};
+    \node[ent] (w) at (5.6,1.6) {Discord /\\Telegram};
+    \node[store] (d) at (5.6,-0.6) {D: Cơ sở dữ liệu\\(Users, Matches, MatchDetails)};
+    \draw[flow] ([yshift=4pt]u.east) -- node[lab, above]{yêu cầu: đăng nhập, phòng,\\tìm trận, bắn, chat} ([yshift=10pt]p.west);
+    \draw[flow] ([yshift=-4pt]p.west) -- node[lab, below]{kết quả, trạng thái trận,\\danh sách Online} ([yshift=-4pt]u.east);
+    \draw[flow] (o) -- node[lab, below]{khởi động, chọn CSDL} (p);
+    \draw[flow] (p) -- node[lab, above]{ghi trận, đọc\\tài khoản} (d);
+    \draw[flow] (p) -- node[lab, above, sloped]{kết quả trận (HTTP POST)} (w);
+  \end{tikzpicture}
+  \par\vspace{0.1cm}\scriptsize Người chơi còn đọc bảng xếp hạng trực tiếp qua REST (chỉ đọc). Webhook đang phát triển.
+\end{frame}
+
+% ---------- DFD mức 1 ----------
+\begin{frame}{Lược Đồ Dòng Dữ Liệu (DFD) Mức 1}
+  \centering
+  \begin{tikzpicture}[
+    proc/.style={draw=inkblue, fill=paleblue, thick, rounded corners=6pt, minimum width=2.9cm, minimum height=1.05cm, align=center, font=\scriptsize},
+    ent/.style={draw=inkblue, fill=gold!40, thick, minimum width=1.9cm, minimum height=0.9cm, align=center, font=\scriptsize},
+    store/.style={draw=inkblue, fill=white, thick, minimum width=2.8cm, minimum height=0.75cm, align=center, font=\scriptsize},
+    flow/.style={-{Stealth[length=1.8mm]}, thick, color=brandblue},
+    lab/.style={font=\tiny, fill=bgblue, inner sep=1pt}]
+    \node[ent] (u) at (-5.8,0) {Người\\chơi};
+    \node[proc] (p1) at (-2.2,2.1)  {\textbf{1} Xác thực};
+    \node[proc] (p2) at (-2.2,0.35) {\textbf{2} Phòng và\\ghép trận};
+    \node[proc] (p3) at (-2.2,-1.5) {\textbf{3} Điều khiển trận\\(đang phát triển)};
+    \node[proc] (p4) at (-2.2,-3.2) {\textbf{4} Chat sảnh};
+    \node[proc] (p5) at (2.1,-3.2)  {\textbf{5} Thống kê,\\bảng xếp hạng};
+    \node[store] (d1) at (5.4,2.1)  {D1 Users};
+    \node[store] (d2) at (5.4,-1.5) {D2 Matches,\\MatchDetails};
+    \node[store] (d3) at (2.1,0.35) {D3 Phòng\\(trong bộ nhớ)};
+    \draw[flow] (u) -- (p1); \draw[flow] (u) -- (p2); \draw[flow] (u) -- (p3); \draw[flow] (u) -- (p4);
+    \draw[flow] (p1) -- node[lab, above]{tên, hash} (d1);
+    \draw[flow] (p2) -- node[lab, above]{tạo, vào, rời} (d3);
+    \draw[flow] (p3) -- node[lab, above]{ghi kết quả} (d2);
+    \draw[flow] (p3) -- (d3);
+    \draw[flow] (d1) to[bend left=15] node[lab, right]{Wins, Score} (p5);
+    \draw[flow] (d2) -- (p5);
+  \end{tikzpicture}
+  \par\vspace{0.1cm}\scriptsize \textbf{1, 2, 4} đã chạy. \textbf{3} (luật trận) và ghi \textbf{D2} đang phát triển. \textbf{5} đọc qua view \texttt{leaderboard}.
+\end{frame}
+
 % ---------- Kiến trúc ----------
 \begin{frame}{Kiến Trúc Tổng Thể}
   \centering

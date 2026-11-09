@@ -13,5 +13,6 @@
 | Thiết kế giao diện | `gk-02-register.png` | Màn hình Đăng ký | Dũng | Chưa có |
 | Thiết kế giao diện | `gk-03-roomwait.png` | Phòng chờ có 2 người chơi và nút Ready | Dũng | Chưa có |
 | Thiết kế giao diện | `gk-04-board.png` | Lưới 10x10 (chụp từ Client) | Dũng | Chưa có |
+| Kịch bản demo | `10-server-log.png` | Cửa sổ Server có dòng "Đang dùng: Supabase" và "Đang lắng nghe tại cổng 8000" | Hoàng | Chưa có |
 
-Chưa có 4 ảnh `gk-*`: cần chạy Server + Client rồi chụp (`Win + Shift + S`).
+Chưa có 4 ảnh `gk-*` (Dũng) và `10-server-log.png` (Hoàng): cần chạy Server + Client rồi chụp (`Win + Shift + S`).
