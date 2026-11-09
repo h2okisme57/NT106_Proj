@@ -262,17 +262,13 @@ namespace Battleship.Client
             {
                 try
                 {
-                    var createRoomDto = new CreateRoomDto
-                    {
-                        RoomName = $"Phòng của {PlayerProfile.Username}"
-                    };
-
-                    var packet = Packet.Create(PacketType.CreateRoomRequest, createRoomDto);
+                    // Bấm "Tìm phòng" = vào hàng đợi ghép trận, server ghép đủ 2 người sẽ tự tạo phòng
+                    var packet = Packet.Create(PacketType.MatchmakingJoinRequest, new { });
                     await NetworkManager.Instance.SendAsync(packet);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Lỗi gửi yêu cầu tạo phòng: {ex.Message}", "Lỗi mạng", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"Lỗi gửi yêu cầu tìm trận: {ex.Message}", "Lỗi mạng", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else

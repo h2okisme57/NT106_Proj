@@ -152,6 +152,13 @@ namespace Battleship.Client
         {
             if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
             {
+                if (string.IsNullOrEmpty(_currentRoomId))
+                {
+                    // chưa có phòng nghĩa là đang chờ ghép trận: hủy tìm trận
+                    _ = NetworkManager.Instance.SendAsync(Packet.Create(PacketType.MatchmakingCancelRequest, new { }));
+                    return;
+                }
+
                 var leaveDto = new LeaveRoomDto { RoomId = _currentRoomId };
                 var packet = Packet.Create(PacketType.LeaveRoom, leaveDto);
                 _ = NetworkManager.Instance.SendAsync(packet);
