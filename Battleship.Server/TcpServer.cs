@@ -18,12 +18,14 @@ public class TcpServer
     private readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
     private readonly RoomManager _roomManager = new();   // phần của Đức (đã có sẵn)
     private readonly PacketRouter _router;
+    private readonly MatchmakingQueue _matchmaking;   // Hoàng - hàng đợi tìm trận
     private readonly CancellationTokenSource _cts = new();
 
     public TcpServer(int port)
     {
         _listener = new TcpListener(IPAddress.Any, port);
         _router = new PacketRouter(_sessions);
+        _matchmaking = new MatchmakingQueue(_roomManager);
         RegisterHandlers();
     }
 
@@ -36,6 +38,11 @@ public class TcpServer
         var authHandler = new AuthHandler();
         _router.Register(PacketType.LoginRequest, authHandler);
         _router.Register(PacketType.RegisterRequest, authHandler);
+
+        // Hoàng - tìm trận / hủy tìm trận
+        var matchmakingHandler = new MatchmakingHandler(_matchmaking);
+        _router.Register(PacketType.MatchmakingJoinRequest, matchmakingHandler);
+        _router.Register(PacketType.MatchmakingCancelRequest, matchmakingHandler);
 
         // =========================================================================
         // ĐĂNG KÝ THÊM HANDLER XỬ LÝ BẠN BÈ (FriendHandler)
@@ -60,6 +67,9 @@ public class TcpServer
     {
         _listener.Start();
         Console.WriteLine($"[TcpServer] Đang lắng nghe tại cổng {((IPEndPoint)_listener.LocalEndpoint).Port}...");
+
+        // chạy worker ghép cặp ở nền, không await để khỏi bị đứng ở đây
+        _ = _matchmaking.RunAsync(_cts.Token);
 
         try
         {
@@ -112,6 +122,7 @@ public class TcpServer
     {
         _sessions.TryRemove(session.SessionId, out _);
         OnlineUsers.Remove(session);   // trả tên đăng nhập để lần sau đăng nhập lại được
+        _matchmaking.Cancel(session);   // đang chờ tìm trận mà tắt app thì bỏ khỏi hàng đợi
         Console.WriteLine($"[TcpServer] Client {session.SessionId} đã ngắt. Online: {_sessions.Count}");
         // DONE (Dũng - 3.2): broadcast trạng thái Offline cho các client còn lại.
         // Chỉ thông báo Offline nếu client này đã đăng nhập thành công trước đó

@@ -1,7 +1,7 @@
 # KỊCH BẢN THUYẾT TRÌNH VÀ DEMO: BÁO CÁO THỨ SÁU 30/10
 
 > Người nói chính: **Hoàng**. Đức và Dũng thao tác máy và trả lời câu hỏi thuộc mảng của mình.
-> Slide: `docs/slides/slide_demo.pdf` (15 trang). Script hỗ trợ: `docs/demo/demo_check.ps1`, `docs/demo/demo_rest.ps1`.
+> Slide: `docs/slides/slide_demo.pdf` (23 trang). Script hỗ trợ: `docs/demo/demo_check.ps1`, `docs/demo/demo_rest.ps1`.
 
 ---
 
@@ -52,17 +52,21 @@ Quay **đúng kịch bản mục 3**, nói thuyết minh ngắn, có cả màn h
 
 ---
 
-## 2. KHUNG THỜI GIAN (giả định 12 phút, chỉnh lại theo thời lượng cô cho)
+## 2. KHUNG THỜI GIAN (giả định 15 phút, chỉnh lại theo thời lượng cô cho)
 
-| Phần | Slide | Thời gian | Người nói |
+**Hoàng nói tất cả các slide** (kể cả phần Đức và Dũng soạn, theo ý chính). Đức và Dũng bổ sung hoặc trả lời nếu cô hỏi vào mảng của mình.
+
+| Phần | Slide | Thời gian | Soạn slide |
 |---|---|---|---|
 | Mở đầu, bối cảnh | 1–4 | 2 phút | Hoàng |
-| Vì sao Supabase, kiến trúc | 5–8 | 3 phút | Hoàng |
-| Đăng nhập an toàn, bảo mật dữ liệu | 9–10 | 2 phút | Hoàng (Dũng bổ sung phần CSDL nếu cần) |
-| **DEMO** | 11 | **4 phút** | Hoàng nói, Dũng/Đức thao tác |
-| Rủi ro, phân công, kết luận | 12–15 | 1 phút | Hoàng |
+| Kiến trúc server và game | 5–8 | 2 phút | **Đức** |
+| Cơ sở dữ liệu và giao diện | 9–12 | 2 phút | **Dũng** |
+| Cloud: vì sao Supabase, kiến trúc, web service | 13–16 | 2,5 phút | Hoàng |
+| Đăng nhập an toàn, bảo mật dữ liệu | 17–18 | 2 phút | Hoàng |
+| **DEMO** | 19 | **4 phút** | Hoàng làm, Đức/Dũng hỗ trợ |
+| Rủi ro, phân công, kết luận, cảm ơn | 20–23 | 1 phút | Hoàng |
 
-Nếu cô chỉ cho **ngắn hơn**: bỏ slide 2, 4, 12; giữ slide 5, 6, 9, demo.
+Nếu cô chỉ cho **ngắn hơn** (ví dụ 10 phút), bỏ theo thứ tự này cho đến khi vừa: slide 8 (State Machine đầy đủ) → slide 2 (mục lục) → slide 4 → slide 7 → slide 20 → slide 12. **Giữ lại bằng mọi giá:** 13, 14, 17, 19 (demo).
 
 ---
 
@@ -80,36 +84,60 @@ Nếu cô chỉ cho **ngắn hơn**: bỏ slide 2, 4, 12; giữ slide 5, 6, 9, d
 **Slide 4: Tình trạng trước khi thêm cloud** (30 giây)
 > "Trước đó dữ liệu lưu SQLite ngay trên máy server nên chỉ một máy dùng được và bên ngoài không truy vấn được. Hai việc cần giải quyết là: dùng chung được, và có web service."
 
-**Slide 5: Vì sao Supabase** (1 phút)
+**Slide 5: Kiến trúc TCP Server** *(nội dung Đức soạn; Hoàng nói theo ý chính)* (30 giây)
+> "Phía server dùng TcpListener nhận kết nối, mỗi client một Task nên không bị nghẽn. ClientSession đọc gói theo framing 4 byte, PacketRouter chuyển từng loại gói cho handler tương ứng."
+
+**Slide 6: Quản lý phòng và State Machine** *(Đức)* (40 giây)
+> "Các phòng được quản lý bằng ConcurrentDictionary, mỗi phòng có khóa riêng để hai người vào cùng lúc không bị lỗi. Trạng thái phòng chạy theo State Machine: nét liền là phần đã làm, nét đứt là phần đang phát triển. Server là bên quyết định, client không tự tính được kết quả."
+
+**Slide 7: Phòng đấu trong ứng dụng** *(Đức)* (20 giây)
+> "Client có thể xem danh sách phòng, tạo phòng và vào phòng." *(Đức kiểm tra lại cho khớp với những gì đã có.)*
+
+**Slide 8: Bản thiết kế State Machine** *(Đức, tùy chọn)* (10 giây)
+> "Đây là bản thiết kế đầy đủ, một phần đã hiện thực như vừa nói." *(Thiếu giờ thì bỏ qua.)*
+
+**Slide 9: Mô hình dữ liệu (ERD)** *(Dũng)* (40 giây)
+> "Có ba bảng. Users lưu tài khoản và điểm số, mật khẩu chỉ lưu dạng BCrypt. Matches lưu từng trận. MatchDetails lưu từng lượt bắn của trận đó. Một người chơi có nhiều trận, một trận có nhiều lượt bắn."
+
+**Slide 10: Dữ liệu thật trên Supabase** *(Dũng)* (30 giây)
+> "Bên trái là bảng Users trên Supabase, dữ liệu ghi từ game. Bên phải là chính dữ liệu đó đọc qua web service." *(Nếu dùng slide này thì có thể rút ngắn bước C của demo.)*
+
+**Slide 11: Row Level Security** *(Dũng)* (40 giây)
+> "Supabase mặc định mở REST cho mọi bảng. Nếu không khóa thì ai có khóa công khai đều đọc được cột mật khẩu băm. Nhóm đã bật RLS, thu quyền trên bảng gốc, chỉ mở view leaderboard không có cột mật khẩu. Ảnh bên phải là kết quả: đọc bảng gốc bị chặn 401." *(Slide 18 của Hoàng nhắc lại RLS, nên ở slide 18 chỉ nói tóm tắt 15 giây.)*
+
+**Slide 12: Giao diện Client** *(Dũng)* (20 giây)
+> "Giao diện WinForms gồm đăng ký, đăng nhập, sảnh chờ, danh sách phòng và bảng xếp hạng. Ảnh cuối là thông báo khóa khi nhập sai mật khẩu nhiều lần."
+
+**Slide 13: Vì sao Supabase** (1 phút)
 > "Em cân nhắc ba lựa chọn. Firebase là NoSQL và không có provider cho Entity Framework Core, nên phải viết lại toàn bộ lớp dữ liệu. Supabase thực chất là PostgreSQL nên chỉ cần đổi provider, đồng thời cho REST API miễn phí. SQLite em vẫn giữ làm dự phòng khi mất mạng."
 
-**Slide 6: Kiến trúc** (1 phút) — *chỉ vào sơ đồ*
+**Slide 14: Kiến trúc** (1 phút) — *chỉ vào sơ đồ*
 > "Game vẫn đi qua TCP Server như cũ. Server nói chuyện với Supabase qua EF Core. Riêng bảng xếp hạng thì Client gọi thẳng REST API của Supabase bằng HTTPS, không đi qua server. Nét đứt là đường chuyển sang SQLite."
 
-**Slide 7: Kết nối CSDL** (30 giây)
+**Slide 15: Kết nối CSDL** (30 giây)
 > "Chọn nơi lưu bằng một biến môi trường, không sửa code. Chuỗi kết nối nằm trong biến môi trường chứ không nằm trong mã nguồn. Server tự tạo bảng khi khởi động."
 
-**Slide 8: Web service REST** (30 giây)
+**Slide 16: Web service REST** (30 giây)
 > "Mỗi bảng hoặc view trong Supabase tự có một endpoint. Em gọi bằng HttpClient, chỉ cần một header khóa công khai. Thiếu khóa trả về 401."
 
-**Slide 9: Đăng nhập an toàn** (1 phút) — *đây là phần cô yêu cầu, nói chắc*
+**Slide 17: Đăng nhập an toàn** (1 phút) — *đây là phần cô yêu cầu, nói chắc*
 > "Về đăng nhập, em xử lý các nguy cơ phổ biến. Chưa đăng nhập thì router chặn mọi gói trừ đăng nhập và đăng ký. Dò mật khẩu thì khóa 60 giây sau 5 lần sai. Kiểm tra độ dài và ký tự đầu vào. Một tài khoản chỉ một phiên. So sánh tên không phân biệt hoa thường để không ai giả Admin. Luôn chạy BCrypt kể cả khi tên không tồn tại, để không đoán được tên qua thời gian trả lời. Mật khẩu chỉ lưu dạng băm. Em kiểm thử bằng 19 kịch bản tấn công qua TCP thật và đều đạt."
 
-**Slide 10: Bảo mật dữ liệu** (1 phút)
+**Slide 18: Bảo mật dữ liệu** (1 phút)
 > "Supabase mặc định mở REST cho mọi bảng. Em đã kiểm tra: nếu không bật Row Level Security thì ai có khóa công khai đều đọc được bảng Users. Nên em khóa bảng gốc và chỉ mở một view tên leaderboard, không có cột mật khẩu. Em sẽ cho cô thấy ngay trong demo."
 
-**Slide 11: Demo** → xem mục 4 bên dưới (4 phút).
+**Slide 19: Demo** → xem mục 4 bên dưới (4 phút).
 
-**Slide 12: Rủi ro và dự phòng** (20 giây)
+**Slide 20: Rủi ro và dự phòng** (20 giây)
 > "Rủi ro lớn nhất là mạng trường. Em chuẩn bị hotspot, chế độ SQLite offline và video quay sẵn."
 
-**Slide 13: Phân công** (20 giây)
+**Slide 21: Phân công** (20 giây)
 > "Em phụ trách mạng, Supabase và bảo mật đăng nhập. Bạn Dũng phụ trách giao diện và cơ sở dữ liệu. Bạn Đức phụ trách logic server và phòng đấu."
 
-**Slide 14: Kết luận** (15 giây)
+**Slide 22: Kết luận** (15 giây)
 > "Tóm lại: giao thức socket tự thiết kế, đăng nhập an toàn, dữ liệu trên Supabase, web service REST, và vẫn chạy offline được."
 
-**Slide 15: Cảm ơn** → "Nhóm em xin nhận câu hỏi."
+**Slide 23: Cảm ơn** → "Nhóm em xin nhận câu hỏi."
 
 ---
 
@@ -215,7 +243,7 @@ Server dùng async/await, mỗi client một Task, `ConcurrentDictionary` cho da
 **11. Còn thiếu gì so với kế hoạch?**
 Trả lời thật: "Phần mạng, tài khoản, bảo mật và dữ liệu cloud đã xong. Phần gameplay theo lượt, xếp tàu, sương mù và kiểm thử tải còn lại của các giai đoạn sau, nhóm đang làm tiếp."
 
-**12. Ai làm phần nào?** → Slide 13.
+**12. Ai làm phần nào?** → Slide 21.
 
 ---
 

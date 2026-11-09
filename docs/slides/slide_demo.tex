@@ -29,6 +29,19 @@
 % Logo chỉ chèn khi file tồn tại
 \newcommand{\logoimg}[1]{\IfFileExists{assets/hoids1_logo.png}{\includegraphics[height=#1]{assets/hoids1_logo.png}}{}}
 
+% ── Chèn ảnh có KHUNG GIỮ CHỖ ────────────────────────────────
+% \slideimg[chiều rộng]{tên-file.png}{mô tả ảnh cần chụp}
+% File ảnh để trong thư mục images/. Chưa có ảnh thì hiện khung xám ghi sẵn tên file cần bỏ vào,
+% có ảnh rồi thì tự hiện ảnh (không cần sửa gì thêm).
+\newcommand{\slideimg}[3][0.9\textwidth]{%
+  \IfFileExists{images/#2}{%
+    \includegraphics[width=#1,height=0.5\textheight,keepaspectratio]{images/#2}%
+  }{%
+    \fcolorbox{skyblue}{white}{\parbox[c][0.28\textheight][c]{#1}{\centering\scriptsize\color{inkblue}%
+      \textbf{[CHƯA CÓ ẢNH]}\\[2pt]\texttt{images/#2}\\[2pt]#3}}%
+  }%
+}
+
 % ── Bảng màu ──
 \definecolor{inkblue}{HTML}{1B2C8C}
 \definecolor{brandblue}{HTML}{0A6FBA}
@@ -138,250 +151,19 @@
 \end{frame}
 
 % =====================================================
-\section{Tổng Quan Đồ Án}
-
-\begin{frame}{Đồ Án Battleship Là Gì?}
-  \begin{block}{Trò chơi bắn tàu nhiều người chơi, theo lượt}
-    \begin{itemize}
-      \item Đăng ký, đăng nhập, danh sách \textbf{Online/Offline}, chat sảnh.
-      \item \textbf{Tạo phòng} bằng ID, ghép trận tự động (\textbf{Matchmaking}).
-      \item Xếp tàu trên lưới $10\times10$, bắn theo lượt, \textbf{Server là bên quyết định} Hit/Miss.
-      \item Lưu lịch sử đấu, thắng/thua và điểm xếp hạng.
-    \end{itemize}
-  \end{block}
-  \begin{exampleblock}{Công nghệ cốt lõi của môn NT106}
-    C\# .NET 8 $\cdot$ \texttt{TcpListener/TcpClient} $\cdot$ async/await $\cdot$ framing 4-byte $\cdot$ JSON $\cdot$ AES-128 $\cdot$ BCrypt $\cdot$ EF Core
-  \end{exampleblock}
-\end{frame}
-
-\begin{frame}{Tình Trạng Trước Khi Thêm Cloud}
-  \begin{columns}[T]
-    \begin{column}{0.52\textwidth}
-      \begin{block}{Đã có}
-        \begin{itemize}
-          \item TCP Server bất đồng bộ + \textbf{PacketRouter} đăng ký handler.
-          \item Giao thức: framing 4-byte + \textbf{Handshake} kiểm tra phiên bản.
-          \item \textbf{Mã hóa AES-128} toàn bộ gói tin.
-          \item Đăng nhập/đăng ký với mật khẩu băm \textbf{BCrypt}.
-          \item Dữ liệu lưu \textbf{SQLite} cục bộ qua EF Core.
-        \end{itemize}
-      \end{block}
-    \end{column}
-    \begin{column}{0.44\textwidth}
-      \begin{alertblock}{Hạn chế cần giải quyết}
-        \begin{itemize}
-          \item Dữ liệu nằm trên \textbf{một máy}, chưa dùng chung.
-          \item Chưa có \textbf{web service} để truy vấn dữ liệu từ bên ngoài.
-        \end{itemize}
-      \end{alertblock}
-    \end{column}
-  \end{columns}
-\end{frame}
-
+% GHÉP CÁC PHẦN. Mỗi người chỉ sửa file phần của mình trong thư mục parts/
+%   01_tongquan.tex     Hoàng
+%   02_server_duc.tex   ĐỨC
+%   03_csdl_dung.tex    DŨNG
+%   04_cloud_hoang.tex  Hoàng
+%   05_demo.tex         Hoàng
+%   06_nhom.tex         Hoàng
 % =====================================================
-\section{Cloud và Web Service}
-
-\begin{frame}{Vì Sao Chọn Supabase?}
-  \small
-  \renewcommand{\arraystretch}{1.25}
-  \begin{tabularx}{\textwidth}{@{}l Y Y Y@{}}
-    \toprule
-    \textbf{Tiêu chí} & \textbf{SQLite} & \textbf{Firebase} & \textbf{Supabase} \\
-    \midrule
-    Loại dữ liệu & File cục bộ (SQL) & NoSQL (Firestore) & \textbf{PostgreSQL} (SQL) \\
-    Dùng được EF Core hiện có & Có & \textbf{Không} (không có provider) & \textbf{Có} (Npgsql) \\
-    Web service có sẵn & Không & Có (SDK/REST) & \textbf{Có, REST tự sinh} \\
-    Cần Internet & Không & Có & Có \\
-    Công sức chuyển đổi & --- & Rất lớn (viết lại lớp dữ liệu) & \textbf{Nhỏ} (đổi provider) \\
-    \bottomrule
-  \end{tabularx}
-  \vspace{0.3cm}
-  \begin{exampleblock}{Kết luận}
-    Supabase giữ nguyên mô hình quan hệ (Users, Matches, MatchDetails) và EF Core đã có, đồng thời cho \textbf{REST API} miễn phí. \textbf{SQLite vẫn giữ làm dự phòng} khi mất mạng.
-  \end{exampleblock}
-\end{frame}
-
-\begin{frame}{Kiến Trúc Sau Khi Thêm Cloud}
-  \centering
-  \begin{tikzpicture}[
-    box/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
-                minimum height=1.1cm, minimum width=3.0cm, font=\footnotesize},
-    cloud/.style={box, fill=paleblue},
-    arr/.style={-{Stealth[length=2.2mm]}, thick, color=brandblue},
-    lab/.style={font=\scriptsize, color=footernavy, fill=bgblue, inner sep=1pt}]
-    \node[box]   (cli) at (0,0)    {\textbf{Client WinForms}\\Login, Lobby, Bàn cờ};
-    \node[box]   (srv) at (5.2,0)  {\textbf{TCP Server C\#}\\Router, Handler};
-    \node[cloud] (pg)  at (10.4,0) {\textbf{Supabase}\\PostgreSQL};
-    \node[cloud] (api) at (10.4,-2.4) {\textbf{REST API}\\view \texttt{leaderboard}};
-    \node[box]   (lite) at (5.2,2.3) {\textbf{SQLite}\\(dự phòng offline)};
-
-    \draw[arr] (cli) -- node[lab,above] {TCP + AES-128} (srv);
-    \draw[arr] (srv) -- node[lab,above] {EF Core + Npgsql} (pg);
-    \draw[arr,dashed] (srv) -- node[lab,right] {đổi cấu hình} (lite);
-    \draw[arr] (api) -- (pg);
-    \draw[arr] (cli.south) |- node[lab,above,pos=0.75] {HTTPS + apikey} (api.west);
-  \end{tikzpicture}
-  \vspace{0.2cm}
-
-  \footnotesize Đường game đi qua \textbf{TCP Server}; đường web service đi thẳng từ Client tới \textbf{REST của Supabase}.
-\end{frame}
-
-\begin{frame}{Kết Nối Cơ Sở Dữ Liệu Với EF Core}
-  \begin{block}{Đổi nơi lưu trữ chỉ bằng cấu hình, không sửa code khi demo}
-    \begin{itemize}
-      \item \texttt{BATTLESHIP\_DB=supabase} $\rightarrow$ Server dùng \textbf{PostgreSQL} (Npgsql).
-      \item \texttt{BATTLESHIP\_DB=sqlite} (mặc định) $\rightarrow$ dùng \texttt{battleship.db} cục bộ.
-      \item Chuỗi kết nối đọc từ biến môi trường, \textbf{không nằm trong mã nguồn}.
-      \item Server \textbf{tự tạo bảng} (\texttt{EnsureCreated}) khi khởi động.
-    \end{itemize}
-  \end{block}
-  \begin{alertblock}{Lưu ý kỹ thuật}
-    Dùng chuỗi kết nối \textbf{Session pooler} của Supabase (hỗ trợ IPv4) và \texttt{SSL Mode=Require}.
-  \end{alertblock}
-\end{frame}
-
-\begin{frame}{Web Service: REST API Của Supabase}
-  \begin{block}{Mỗi bảng/view trong Supabase tự có một endpoint}
-    \texttt{GET https://<project>.supabase.co/rest/v1/leaderboard}\\
-    \texttt{\ \ \ \ \ ?select=*\&order=Score.desc\&limit=10}
-  \end{block}
-  \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      \begin{block}{Header bắt buộc}
-        \begin{itemize}
-          \item \texttt{apikey: <publishable key>} (bắt buộc)
-          \item Thiếu khóa $\rightarrow$ \textbf{401}; khóa đúng nhưng chưa có bảng $\rightarrow$ 404
-        \end{itemize}
-      \end{block}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      \begin{exampleblock}{Phản hồi (JSON)}
-        \footnotesize
-        \texttt{[\{"Username":"admiral\_a",}\\
-        \texttt{\ \ "Wins":12,"Losses":3,}\\
-        \texttt{\ \ "Score":1200\}, ...]}
-      \end{exampleblock}
-    \end{column}
-  \end{columns}
-  \vspace{0.1cm}
-  \footnotesize Client C\# gọi bằng \texttt{HttpClient} và hiển thị lên \texttt{ListView} \textbf{Bảng xếp hạng}.
-\end{frame}
-
-\begin{frame}{Cơ Chế Đăng Nhập An Toàn}
-  \footnotesize
-  \renewcommand{\arraystretch}{1.2}
-  \begin{tabularx}{\textwidth}{@{}Y Y@{}}
-    \toprule
-    \textbf{Nguy cơ} & \textbf{Cách phòng thủ} \\
-    \midrule
-    Gửi gói tin khi chưa đăng nhập & Router \textbf{chặn} mọi gói, trừ Handshake/Login/Register \\
-    Dò mật khẩu hàng loạt & \textbf{Khóa 60 giây} sau 5 lần sai (theo IP và theo tài khoản) \\
-    Dữ liệu đầu vào xấu & Kiểm tra tên 3--20 ký tự, mật khẩu 6--64 ký tự \\
-    Một tài khoản đăng nhập nhiều nơi & Mỗi tài khoản \textbf{một phiên} tại một thời điểm \\
-    Giả mạo \textit{Admin} và \textit{admin} & So sánh tên \textbf{không phân biệt hoa thường} \\
-    Đoán tên tài khoản qua thời gian trả lời & Luôn chạy BCrypt, thông báo lỗi \textbf{chung chung} \\
-    Lộ mật khẩu khi lưu trữ & Chỉ lưu chuỗi băm \textbf{BCrypt} (có muối) \\
-    \bottomrule
-  \end{tabularx}
-  \vspace{0.15cm}
-  \begin{exampleblock}{Kiểm thử}
-    \footnotesize 19 kịch bản tấn công qua TCP, chạy trên server thật: \textbf{đều đạt}.
-  \end{exampleblock}
-\end{frame}
-
-\begin{frame}{Bảo Mật Dữ Liệu}
-  \begin{block}{Nhiều lớp bảo vệ}
-    \begin{itemize}
-      \item \textbf{Trên đường truyền game:} gói tin TCP mã hóa \textbf{AES-128}.
-      \item \textbf{Mật khẩu:} chỉ lưu chuỗi băm \textbf{BCrypt}, không lưu chữ rõ.
-      \item \textbf{Supabase:} bật \textbf{Row Level Security}, thu quyền khóa công khai trên bảng gốc.
-      \item \textbf{Web service:} chỉ mở \textbf{view} \texttt{leaderboard} (không có cột mật khẩu).
-      \item \textbf{Khóa:} chỉ \texttt{publishable key} ở Client; \texttt{service\_role key} và mật khẩu DB nằm trong biến môi trường, \textbf{không commit}.
-    \end{itemize}
-  \end{block}
-  \begin{alertblock}{Vì sao phải khóa bảng gốc?}
-    Supabase mặc định mở REST cho mọi bảng. Nếu không bật RLS, ai có \texttt{publishable key} đều đọc được cột mật khẩu băm của mọi người chơi.
-  \end{alertblock}
-\end{frame}
-
-% =====================================================
-\section{Kịch Bản Demo}
-
-\begin{frame}{Demo Chứng Minh \textquotedblleft Móc Được Dữ Liệu\textquotedblright}
-  \begin{enumerate}
-    \item \textbf{Ghi:} đăng ký tài khoản trong game $\rightarrow$ mở \textbf{Supabase Table Editor}, thấy dòng mới, cột mật khẩu là chuỗi \texttt{\$2a\$...} (BCrypt).
-    \item \textbf{Đọc qua web service:} gọi \texttt{GET .../rest/v1/leaderboard} $\rightarrow$ nhận \textbf{JSON}.
-    \item \textbf{Đọc trong ứng dụng:} Lobby $\rightarrow$ nút \textbf{Bảng xếp hạng} hiển thị dữ liệu lấy qua REST.
-    \item \textbf{Dự phòng:} đặt \texttt{BATTLESHIP\_DB=sqlite} $\rightarrow$ game vẫn chạy khi mất mạng.
-  \end{enumerate}
-  \vspace{0.2cm}
-  \begin{exampleblock}{Thời lượng}
-    Khoảng \textbf{5 phút}. Hoàng thuyết trình và điều khiển demo, Đức và Dũng thao tác máy thứ hai.
-  \end{exampleblock}
-\end{frame}
-
-\begin{frame}{Rủi Ro Và Phương Án Dự Phòng}
-  \small
-  \renewcommand{\arraystretch}{1.25}
-  \begin{tabularx}{\textwidth}{@{}Y Y@{}}
-    \toprule
-    \textbf{Rủi ro} & \textbf{Phương án} \\
-    \midrule
-    Mạng trường chập chờn & Hotspot 4G; chuyển sang \textbf{SQLite}; phát \textbf{video demo} quay sẵn \\
-    Supabase gói miễn phí tạm dừng project & Kiểm tra dashboard trước buổi demo, bấm \textbf{Restore} nếu cần \\
-    Chuỗi kết nối \textit{direct} không nối được (IPv6) & Dùng chuỗi \textbf{Session pooler} \\
-    Lộ khóa hoặc mật khẩu & Biến môi trường, không commit, không dùng \texttt{service\_role} ở Client \\
-    \bottomrule
-  \end{tabularx}
-\end{frame}
-
-% =====================================================
-\section{Nhóm Thực Hiện}
-
-\begin{frame}{Phân Công Thuyết Trình Và Thực Hiện}
-  \small
-  \renewcommand{\arraystretch}{1.3}
-  \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm} Y Y@{}}
-    \toprule
-    \textbf{Thành viên} & \textbf{Phần thuyết trình} & \textbf{Phần kỹ thuật} \\
-    \midrule
-    \textbf{Hoàng} \newline {\scriptsize \color{brandblue}\bevnsemi CORE THUYẾT TRÌNH}
-      & Mở đầu, kiến trúc, bảo mật, \textbf{demo live}, kết luận
-      & Supabase, chuyển DB (SQLite $\leftrightarrow$ Supabase), TCP/AES, Bảng xếp hạng qua REST \\
-    \textbf{Dũng}
-      & Mục \textit{Cơ sở dữ liệu} (ERD, RLS), thao tác máy demo
-      & Models/EF Core, SQL \texttt{setup}, dữ liệu mẫu, nút Bảng xếp hạng ở Lobby \\
-    \textbf{Đức}
-      & Mục \textit{Kiến trúc server và game}, thao tác máy thứ hai
-      & RoomManager, State Machine, video demo dự phòng \\
-    \bottomrule
-  \end{tabularx}
-  \vspace{0.25cm}
-
-  \footnotesize Hoàng nói chính; Đức và Dũng trả lời câu hỏi thuộc mảng của mình.
-\end{frame}
-
-\begin{frame}{Kết Luận}
-  \begin{block}{Những gì đạt được}
-    \begin{itemize}
-      \item Game dùng \textbf{raw socket TCP} với giao thức tự thiết kế, mã hóa \textbf{AES-128}.
-      \item \textbf{Đăng nhập an toàn:} BCrypt, chặn gói khi chưa đăng nhập, khóa khi dò mật khẩu.
-      \item Dữ liệu lưu được trên \textbf{Supabase (PostgreSQL)} qua EF Core.
-      \item Có \textbf{web service REST} để truy vấn bảng xếp hạng từ bên ngoài.
-      \item Vẫn chạy được \textbf{offline} nhờ SQLite dự phòng.
-    \end{itemize}
-  \end{block}
-  \begin{exampleblock}{Hướng phát triển}
-    Đăng nhập bằng token của Supabase Auth, đồng bộ lịch sử trận đấu lên cloud, thêm bảng xếp hạng theo tuần.
-  \end{exampleblock}
-\end{frame}
-
-\begin{frame}
-  \centering
-  \vspace{1.5cm}
-  {\bungee\color{inkblue}\fontsize{20}{24}\selectfont CẢM ƠN ĐÃ THEO DÕI!}\par
-  \vspace{0.3cm}
-  {\bevnsemi\color{brandblue}\small Nhóm sẵn sàng trả lời câu hỏi}
-\end{frame}
+\input{parts/01_tongquan}
+\input{parts/02_server_duc}
+\input{parts/03_csdl_dung}
+\input{parts/04_cloud_hoang}
+\input{parts/05_demo}
+\input{parts/06_nhom}
 
 \end{document}

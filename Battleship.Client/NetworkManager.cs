@@ -22,6 +22,12 @@ namespace Battleship.Client
 
         public bool IsConnected => _client != null && _client.Connected;
 
+        // Lưu các gói vừa nhận để WaitForPacketAsync không bị lỡ khi server trả lời quá nhanh
+        // (gói về trước khi kịp đăng ký lắng nghe). Mọi việc ĐỌC stream chỉ do ReceiveLoopAsync làm.
+        private readonly object _recentLock = new object();
+        private readonly List<(Packet Packet, DateTime At)> _recent = new List<(Packet Packet, DateTime At)>();
+        private DateTime _lastSendAt = DateTime.MinValue;
+
         /// <summary>
         /// Mở kết nối TCP và thực hiện Bắt tay (Handshake) với Server
         /// </summary>
@@ -77,6 +83,13 @@ namespace Battleship.Client
 
                     if (packet != null)
                     {
+                        // Cất vào bộ đệm trước, rồi mới báo sự kiện
+                        lock (_recentLock)
+                        {
+                            _recent.Add((packet, DateTime.UtcNow));
+                            if (_recent.Count > 50) _recent.RemoveAt(0);
+                        }
+
                         // Kích hoạt sự kiện để Lobby (và các UI khác) xử lý
                         OnPacketReceived?.Invoke(packet);
                     }
@@ -104,6 +117,7 @@ namespace Battleship.Client
         public async Task SendAsync(Packet packet, CancellationToken ct = default)
         {
             if (!IsConnected || _stream == null) return;
+            lock (_recentLock) { _lastSendAt = DateTime.UtcNow; }   // mốc: chỉ nhận phản hồi về SAU lần gửi này
             try
             {
                 await PacketFraming.SendPacketAsync(_stream, packet, ct);
@@ -123,14 +137,37 @@ namespace Battleship.Client
         {
             if (!IsConnected || _stream == null) return null;
 
-            Packet? packet = await PacketFraming.ReadPacketAsync(_stream, ct);
-
-            if (packet != null && packet.Type == expectedType)
+            // KHÔNG đọc stream ở đây nữa: vòng lặp nền ReceiveLoopAsync đã đọc stream rồi,
+            // hai nơi cùng đọc một stream sẽ xé đôi khung gói tin (lỗi "Lỗi kết nối máy chủ!").
+            // Thay vào đó chờ gói đúng loại mà vòng lặp nền nhận được.
+            var tcs = new TaskCompletionSource<Packet?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Action<Packet> handler = p => { if (p.Type == expectedType) tcs.TrySetResult(p); };
+            OnPacketReceived += handler;
+            try
             {
-                return packet;
-            }
+                // Gói có thể đã về trước khi mình đăng ký lắng nghe: tìm trong bộ đệm (kể từ lần gửi gần nhất)
+                lock (_recentLock)
+                {
+                    for (int i = _recent.Count - 1; i >= 0; i--)
+                    {
+                        if (_recent[i].Packet.Type == expectedType && _recent[i].At >= _lastSendAt)
+                        {
+                            tcs.TrySetResult(_recent[i].Packet);
+                            _recent.RemoveAt(i);
+                            break;
+                        }
+                    }
+                }
 
-            return packet;
+                // Chờ tối đa 10 giây; quá hạn thì trả về null ("Không nhận được phản hồi")
+                var timeout = Task.Delay(TimeSpan.FromSeconds(10), ct);
+                var finished = await Task.WhenAny(tcs.Task, timeout);
+                return finished == tcs.Task ? tcs.Task.Result : null;
+            }
+            finally
+            {
+                OnPacketReceived -= handler;
+            }
         }
 
         /// <summary>

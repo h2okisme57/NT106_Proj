@@ -1,0 +1,163 @@
+% BÁO CÁO GIỮA KỲ. Biên dịch bằng XeLaTeX 2 lần:  xelatex slide_giuaky.tex
+% Có thư mục fonts/ và assets/ cạnh file này thì dùng font + logo của template,
+% không có thì tự dùng font mặc định, vẫn biên dịch được.
+\documentclass[aspectratio=169,9pt]{beamer}
+\usepackage{fontspec}
+\usepackage[vietnamese]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{calc,arrows.meta,positioning}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X} % cột X căn trái, không giãn chữ
+
+% ── Fonts: Bungee (tiêu đề) + Be Vietnam Pro (nội dung), có fallback ──
+\IfFileExists{fonts/BeVietnamPro-Regular.ttf}{%
+  \setmainfont{BeVietnamPro-Regular.ttf}[
+    Path=fonts/,
+    BoldFont=BeVietnamPro-Bold.ttf,
+    ItalicFont=BeVietnamPro-Medium.ttf,
+    BoldItalicFont=BeVietnamPro-SemiBold.ttf]
+  \newfontfamily\bungee{Bungee-Regular.ttf}[Path=fonts/]
+  \newfontfamily\bevnsemi{BeVietnamPro-SemiBold.ttf}[Path=fonts/]
+}{%
+  \newcommand{\bungee}{\bfseries}
+  \newcommand{\bevnsemi}{\bfseries}
+}
+
+% Logo chỉ chèn khi file tồn tại
+\newcommand{\logoimg}[1]{\IfFileExists{assets/hoids1_logo.png}{\includegraphics[height=#1]{assets/hoids1_logo.png}}{}}
+
+% ── Chèn ảnh có KHUNG GIỮ CHỖ ────────────────────────────────
+% \slideimg[chiều rộng]{tên-file.png}{mô tả ảnh cần chụp}
+% File ảnh để trong thư mục images/. Chưa có ảnh thì hiện khung xám ghi sẵn tên file cần bỏ vào,
+% có ảnh rồi thì tự hiện ảnh (không cần sửa gì thêm).
+\newcommand{\slideimg}[3][0.9\textwidth]{%
+  \IfFileExists{images/#2}{%
+    \includegraphics[width=#1,height=0.5\textheight,keepaspectratio]{images/#2}%
+  }{%
+    \fcolorbox{skyblue}{white}{\parbox[c][0.28\textheight][c]{#1}{\centering\scriptsize\color{inkblue}%
+      \textbf{[CHƯA CÓ ẢNH]}\\[2pt]\texttt{images/#2}\\[2pt]#3}}%
+  }%
+}
+
+% ── Bảng màu ──
+\definecolor{inkblue}{HTML}{1B2C8C}
+\definecolor{brandblue}{HTML}{0A6FBA}
+\definecolor{midblue}{HTML}{2E7DD1}
+\definecolor{skyblue}{HTML}{73A5E1}
+\definecolor{paleblue}{HTML}{D4E6FB}
+\definecolor{bgblue}{HTML}{EAF2FD}
+\definecolor{gold}{HTML}{FFC21E}
+\definecolor{footernavy}{HTML}{14276B}
+
+\usetheme{default}
+\usefonttheme{professionalfonts}
+\setbeamertemplate{navigation symbols}{}
+\setbeamercolor{normal text}{fg=footernavy}
+\setbeamercolor{structure}{fg=brandblue}
+\setbeamercolor{itemize item}{fg=brandblue}
+\setbeamercolor{itemize subitem}{fg=skyblue}
+\setbeamertemplate{itemize item}{\small\textbullet}
+
+\setbeamercolor{block title}{bg=inkblue,fg=white}
+\setbeamercolor{block body}{bg=white,fg=footernavy}
+\setbeamercolor{block title alerted}{bg=brandblue,fg=white}
+\setbeamercolor{block body alerted}{bg=white,fg=footernavy}
+\setbeamercolor{block title example}{bg=gold,fg=footernavy}
+\setbeamercolor{block body example}{bg=white,fg=footernavy}
+\setbeamerfont{block title}{family=\bevnsemi,size=\normalsize}
+\setbeamerfont{block title example}{family=\bevnsemi,size=\normalsize}
+\setbeamerfont{block title alerted}{family=\bevnsemi,size=\normalsize}
+\setbeamertemplate{blocks}[rounded][shadow=true]
+
+% ── Nền mọi slide ──
+\setbeamertemplate{background}{%
+  \begin{tikzpicture}
+    \useasboundingbox (0,0) rectangle (\the\paperwidth,\the\paperheight);
+    \fill[bgblue] (0,0) rectangle (\the\paperwidth,\the\paperheight);
+    \foreach \x/\h in {0/0.9, 0.9/1.5, 1.7/1.0, 2.5/1.9, 3.5/1.2, 4.3/1.7,
+                       5.2/1.0, 6.0/1.6, 6.9/1.1, 7.7/2.0, 8.7/1.3, 9.6/1.7,
+                       10.5/1.0, 11.3/1.5, 12.2/1.1, 13.0/1.8, 14.0/1.2, 14.9/1.6}{
+      \fill[paleblue] (\x,0) rectangle (\x+0.78,\h*0.5);
+    }
+    \fill[footernavy] (0,0) rectangle (\the\paperwidth,0.6);
+    \fill[gold] (0,0.6) rectangle (\the\paperwidth,0.65);
+  \end{tikzpicture}%
+}
+
+% ── Tiêu đề frame ──
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip%
+  \vskip -2pt%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=1.1cm,dp=0.2cm]{frametitle}
+  \hbox to \paperwidth{%
+    \hspace{0.6em}%
+    \begin{minipage}[c]{0.80\paperwidth}
+      {\bungee\color{inkblue}\fontsize{11}{11}\selectfont \insertframetitle}%
+      \par\nointerlineskip\vspace{2pt}%
+      {\color{brandblue}\rule{\linewidth}{1.2pt}}
+    \end{minipage}%
+    \hfill%
+    \raisebox{-4pt}{\logoimg{0.085\paperheight}}%
+    \hspace{0.6em}%
+  }%
+  \end{beamercolorbox}%
+  \vspace{-0.6em}%
+}
+
+% ── Chân trang ──
+\setbeamertemplate{footline}{%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=0.6cm,dp=0pt]{footline}
+    \vbox to 0.6cm{%
+      \vfil
+      \hbox to \paperwidth{%
+        \hspace{1.2em}%
+        {\footnotesize\color{white}\bevnsemi NT106 $\cdot$ Battleship Network}\hfill
+        {\footnotesize\color{white}\insertframenumber{} / \inserttotalframenumber}\hspace{1.2em}%
+      }%
+      \vfil
+    }%
+  \end{beamercolorbox}%
+}
+
+\title{BATTLESHIP MULTIPLAYER\\BÁO CÁO GIỮA KỲ}
+\subtitle{Giới thiệu $\cdot$ Cơ sở lý thuyết $\cdot$ Phân tích và thiết kế hệ thống}
+\author{Hoàng $\cdot$ Đức $\cdot$ Dũng}
+\date{\today}
+
+\begin{document}
+
+% ── Slide 1: Trang tiêu đề ──
+{\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+  \centering
+  \vspace{0.3cm}
+  \logoimg{0.22\paperheight}\par
+  \vspace{0.3cm}
+  {\bungee\color{inkblue}\fontsize{17}{21}\selectfont BATTLESHIP MULTIPLAYER}\par
+  \vspace{0.15cm}
+  {\bungee\color{brandblue}\fontsize{13}{16}\selectfont BÁO CÁO GIỮA KỲ}\par
+  \vspace{0.25cm}
+  {\bevnsemi\color{brandblue}\small Môn Lập trình mạng căn bản (NT106) $\cdot$ UIT}\par
+  \vspace{0.15cm}
+  {\bevnsemi\color{footernavy}\footnotesize Hoàng $\cdot$ Đức $\cdot$ Dũng}
+\end{frame}}
+
+% ── Slide 2: Mục lục ──
+\begin{frame}{Mục Lục Nội Dung}
+  \tableofcontents
+\end{frame}
+
+% =====================================================
+% GHÉP CÁC PHẦN (thư mục gk/). Các mục 4-6 làm sau khi có gameplay.
+% =====================================================
+\input{gk/00_vietat}
+\input{gk/01_gioithieu}
+\input{gk/02_cosolythuyet}
+\input{gk/03_phantich_thietke}
+\input{gk/04_demo}
+\input{gk/05_tailieu}
+
+\end{document}
