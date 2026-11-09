@@ -1,0 +1,284 @@
+% ============================================================
+% MỤC 3: PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG
+%   yêu cầu - use case - kiến trúc - giao thức - luồng dữ liệu - state machine - CSDL - bảo mật - giao diện - tính năng đặc biệt
+% Phần nào chưa hiện thực thì ghi rõ "thiết kế" hoặc "đang phát triển".
+% ============================================================
+\section{Phân Tích Và Thiết Kế}
+
+% ---------- Yêu cầu ----------
+\begin{frame}{Yêu Cầu Chức Năng Và Phi Chức Năng}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Yêu cầu chức năng}
+        \begin{enumerate}\setlength{\itemsep}{0pt}
+          \item Đăng ký, đăng nhập, xem ai đang Online.
+          \item Chat ở sảnh chờ.
+          \item Tạo phòng, vào phòng bằng ID, tìm trận ngẫu nhiên.
+          \item Xếp tàu, sẵn sàng (Ready), bắn theo lượt.
+          \item Báo trúng/hụt, chìm tàu, kết thúc trận.
+          \item Lưu lịch sử trận, xem bảng xếp hạng.
+        \end{enumerate}
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{alertblock}{Yêu cầu phi chức năng}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item \textbf{Đúng luật}: Server quyết định, chống gian lận.
+          \item \textbf{Bảo mật}: mã hóa gói tin, băm mật khẩu, chống dò mật khẩu.
+          \item \textbf{Đồng thời}: nhiều người chơi, không nghẽn.
+          \item \textbf{Bền}: Client rớt mạng không làm Server sập.
+          \item \textbf{Dễ chạy}: có chế độ SQLite offline để demo.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Use case ----------
+\begin{frame}{Biểu Đồ Chức Năng Của Người Chơi}
+  \centering
+  \begin{tikzpicture}[
+    grp/.style={draw=inkblue, fill=white, rounded corners=4pt, thick, align=left,
+                font=\scriptsize, inner sep=6pt, text width=3.3cm},
+    gt/.style={font=\scriptsize\bfseries, color=inkblue},
+    arr/.style={-{Stealth[length=2mm]}, thick, color=brandblue}]
+    \node[draw=inkblue, fill=gold!50, rounded corners=3pt, thick, minimum height=1.2cm, minimum width=1.6cm, font=\small\bfseries, align=center] (p) at (0,0) {Người\\chơi};
+    \node[grp] (g1) at (4.3,1.9)  {\textbf{Tài khoản}\\Đăng ký\\Đăng nhập\\Xem Online/Offline};
+    \node[grp] (g2) at (4.3,-1.9) {\textbf{Sảnh chờ}\\Chat sảnh\\Xem danh sách phòng\\Xem bảng xếp hạng};
+    \node[grp] (g3) at (8.4,1.9)  {\textbf{Phòng và ghép trận}\\Tạo phòng\\Vào phòng bằng ID\\Tìm trận ngẫu nhiên\\Sẵn sàng (Ready)};
+    \node[grp] (g4) at (8.4,-1.9) {\textbf{Trong trận}\\Xếp tàu\\Bắn theo lượt\\Dùng Radar\\Chat trong trận};
+    \draw[arr] (p) -- (g1); \draw[arr] (p) -- (g2);
+    \draw[arr] (g1) -- (g3); \draw[arr] (g2) -- (g4);
+    \draw[arr] (g3) -- (g4);
+  \end{tikzpicture}
+  \par\vspace{0.1cm}\scriptsize Mũi tên giữa các nhóm thể hiện thứ tự dùng. Server là bên xử lý mọi yêu cầu.
+\end{frame}
+
+% ---------- Kiến trúc ----------
+\begin{frame}{Kiến Trúc Tổng Thể}
+  \centering
+  \begin{tikzpicture}[
+    box/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
+                minimum height=1.05cm, font=\scriptsize},
+    arr/.style={{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick, color=brandblue},
+    one/.style={-{Stealth[length=2mm]}, thick, color=brandblue, dashed}]
+    \node[box, fill=paleblue, minimum width=2.6cm] (c) at (0,0) {\textbf{Client}\\WinForms\\\texttt{NetworkManager}};
+    \node[box, fill=paleblue, minimum width=3.4cm] (s) at (5.2,0) {\textbf{Server}\\\texttt{TcpServer} $\rightarrow$ \texttt{PacketRouter}\\$\rightarrow$ Handler};
+    \node[box, minimum width=2.6cm] (d) at (10.4,0.9) {\textbf{PostgreSQL}\\Supabase (cloud)};
+    \node[box, minimum width=2.6cm] (l) at (10.4,-0.9) {\textbf{SQLite}\\(chạy offline)};
+    \node[box, minimum width=2.6cm] (r) at (5.2,-2.5) {\textbf{REST (HTTPS)}\\view \texttt{leaderboard}};
+    \node[box, minimum width=2.6cm] (w) at (5.2,2.4) {\textbf{Webhook}\\Discord/Telegram};
+    \draw[arr] (c) -- node[above,font=\tiny, align=center]{TCP\\+ AES-128} (s);
+    \draw[arr] (s) -- node[above,font=\tiny]{EF Core} (d);
+    \draw[arr] (s) -- (l);
+    \draw[one] (c) |- (r); \draw[one] (r) -| (d);
+    \draw[one] (s) -- node[right,font=\tiny]{HTTP POST} (w);
+  \end{tikzpicture}
+  \par\vspace{0.1cm}
+  \scriptsize Nét liền: đường chính (TCP, cơ sở dữ liệu). Nét đứt: chỉ đọc bảng xếp hạng qua REST; webhook (đang phát triển).
+\end{frame}
+
+% ---------- Gói tin ----------
+\begin{frame}{Thiết Kế Giao Thức Gói Tin}
+  \footnotesize
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Cấu trúc một gói}
+        \texttt{[4 byte độ dài][AES(JSON\{Type, Payload\})]}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item \texttt{Type} là kiểu liệt kê (\texttt{PacketType}).
+          \item \texttt{Payload} là JSON của DTO tương ứng.
+          \item Gói đầu tiên là Handshake (phiên bản giao thức).
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{tabularx}{\textwidth}{@{}lY@{}}
+        \toprule \textbf{Nhóm} & \textbf{Kiểu gói chính} \\ \midrule
+        Tài khoản & \texttt{LoginRequest/Response}, \texttt{RegisterRequest/Response} \\
+        Phòng & \texttt{CreateRoomRequest}, \texttt{JoinRoomRequest/Response}, \texttt{RoomUpdate}, \texttt{LeaveRoom} \\
+        Ghép trận & \texttt{MatchmakingJoin/CancelRequest}, \texttt{MatchFound} \\
+        Trận đấu & \texttt{PlaceShipsRequest}, \texttt{PlayerReady}, \texttt{GameStart}, \texttt{FireShotRequest}, \texttt{ShotResult}, \texttt{TurnChange}, \texttt{GameOver} \\
+        Khác & \texttt{ChatMessage}, \texttt{OnlineListUpdate}, \texttt{Ping/Pong}, \texttt{Error} \\
+        \bottomrule
+      \end{tabularx}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Luồng đăng nhập ----------
+\begin{frame}{Luồng Dữ Liệu: Đăng Nhập}
+  \centering
+  \begin{tikzpicture}[
+    life/.style={dashed, color=skyblue, thick},
+    msg/.style={-{Stealth[length=2mm]}, thick, color=brandblue},
+    lab/.style={font=\scriptsize, fill=bgblue, inner sep=1pt}]
+    \node[draw=inkblue, fill=paleblue, rounded corners=2pt, thick, minimum width=2cm, font=\small\bfseries] (c) at (0,0) {Client};
+    \node[draw=inkblue, fill=paleblue, rounded corners=2pt, thick, minimum width=2cm, font=\small\bfseries] (s) at (5,0) {Server};
+    \node[draw=inkblue, fill=paleblue, rounded corners=2pt, thick, minimum width=2cm, font=\small\bfseries] (d) at (10,0) {Cơ sở dữ liệu};
+    \draw[life] (c.south) -- (0,-5.2); \draw[life] (s.south) -- (5,-5.2); \draw[life] (d.south) -- (10,-5.2);
+    \draw[msg] (0,-1.0) -- node[lab, above]{1. Handshake (phiên bản)} (5,-1.0);
+    \draw[msg] (5,-1.6) -- node[lab, above]{2. Chấp nhận} (0,-1.6);
+    \draw[msg] (0,-2.3) -- node[lab, above]{3. \texttt{LoginRequest} (AES)} (5,-2.3);
+    \draw[msg] (5,-3.0) -- node[lab, above]{4. Lấy hash theo tên} (10,-3.0);
+    \draw[msg] (10,-3.6) -- node[lab, above]{5. Hash BCrypt} (5,-3.6);
+    \node[font=\scriptsize, align=center, fill=gold!40, rounded corners=2pt] at (5,-4.2) {6. So khớp BCrypt, kiểm tra khóa và đăng nhập trùng};
+    \draw[msg] (5,-4.9) -- node[lab, above]{7. \texttt{LoginResponse} (AES)} (0,-4.9);
+  \end{tikzpicture}
+\end{frame}
+
+% ---------- Luồng một lượt bắn ----------
+\begin{frame}{Luồng Dữ Liệu: Một Lượt Bắn (Thiết Kế)}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \begin{block}{Server-Authoritative}
+        \begin{enumerate}\setlength{\itemsep}{0pt}
+          \item Client gửi \texttt{FireShotRequest} (tọa độ).
+          \item Server kiểm tra: \textbf{đúng lượt?} ô \textbf{chưa bắn?} trận \textbf{đang chơi?} Sai thì bỏ qua.
+          \item Server tra bàn của đối thủ, quyết định \textbf{Hit/Miss/Chìm}.
+          \item Server gửi \texttt{ShotResult} cho \textbf{cả hai}, rồi \texttt{TurnChange}.
+          \item Hết tàu: gửi \texttt{GameOver}, ghi kết quả vào cơ sở dữ liệu.
+        \end{enumerate}
+      \end{block}
+      \begin{alertblock}{Đang phát triển}
+        Logic trận trên Server (bước 2--5) chưa xong; xem lịch ở mục Giới thiệu.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.4\textwidth}
+      \centering
+      \begin{tikzpicture}[
+        flow/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
+                     minimum height=0.8cm, minimum width=4.2cm, font=\scriptsize},
+        arr/.style={-{Stealth[length=2mm]}, thick, color=brandblue}]
+        \node[flow, fill=paleblue] (a) at (0,0) {Client A: \texttt{FireShotRequest}};
+        \node[flow] (b) at (0,-1.3) {Server kiểm tra lượt, ô, trạng thái};
+        \node[flow] (c) at (0,-2.6) {Server tra bàn B, tính kết quả};
+        \node[flow, fill=paleblue] (d) at (0,-3.9) {\texttt{ShotResult} gửi A và B};
+        \draw[arr] (a) -- (b); \draw[arr] (b) -- (c); \draw[arr] (c) -- (d);
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- State machine ----------
+\begin{frame}{Máy Trạng Thái Của Phòng Và Trận}
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Các trạng thái}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item \textbf{Waiting}: chờ đủ 2 người.
+          \item \textbf{Placement}: hai bên xếp tàu.
+          \item \textbf{Ready}: cả hai bấm sẵn sàng.
+          \item \textbf{Playing}: bắn theo lượt.
+          \item \textbf{GameOver}: có người thắng hoặc đối thủ mất kết nối.
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{Quy tắc}
+        Chỉ nhận lệnh bắn khi ở \textbf{Playing} và đúng lượt. Bắt đầu trận chỉ khi \textbf{cả hai} Ready.
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \centering
+      % [ẢNH] sơ đồ State Machine Đức đã vẽ ở README
+      \slideimg[\textwidth]{12-state-machine.png}{Hình State Machine của Đức (lưu từ README trên GitHub)}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- ERD ----------
+\begin{frame}{Thiết Kế Cơ Sở Dữ Liệu (ERD)}
+  \centering
+  \begin{tikzpicture}[
+    ent/.style={draw=inkblue, fill=white, rounded corners=2pt, thick, align=left,
+                font=\scriptsize, inner sep=5pt},
+    arr/.style={thick, color=brandblue}]
+    \node[ent] (u) at (0,0)    {\textbf{Users}\\[2pt]\underline{Id} (PK)\\Username (UNIQUE)\\Password (BCrypt)\\Wins, Losses, Score\\Condition\\UserId (FK, bạn bè)};
+    \node[ent] (m) at (5.4,0)  {\textbf{Matches}\\[2pt]\underline{Id} (PK)\\Player1Id (FK)\\Player2Id (FK)\\WinnerId (FK)\\StartTime, EndTime};
+    \node[ent] (d) at (10.8,0) {\textbf{MatchDetails}\\[2pt]\underline{Id} (PK)\\MatchId (FK)\\PlayerId (FK)\\X\_Coordinate, Y\_Coordinate\\IsHit, TurnTime};
+    \draw[arr] (u) -- node[above,font=\scriptsize]{1 -- N} (m);
+    \draw[arr] (m) -- node[above,font=\scriptsize]{1 -- N} (d);
+  \end{tikzpicture}
+
+  \vspace{0.3cm}\footnotesize
+  Một người chơi có nhiều trận; một trận có nhiều lượt bắn (\textbf{MatchDetails}). View \texttt{leaderboard} chỉ lấy tên, thắng, thua, điểm từ \texttt{Users}.
+\end{frame}
+
+% ---------- Bảo mật ----------
+\begin{frame}{Thiết Kế Bảo Mật Nhiều Lớp}
+  \footnotesize
+  \begin{tabularx}{\textwidth}{@{}l Y Y@{}}
+    \toprule \textbf{Lớp} & \textbf{Biện pháp} & \textbf{Chống lại} \\ \midrule
+    Đường truyền & AES-128-CBC, IV ngẫu nhiên mỗi gói & Nghe lén, đọc trộm gói tin \\
+    Mật khẩu & BCrypt (có salt), kiểm tra dù tên không tồn tại & Lộ mật khẩu nếu rò rỉ DB, dò tên tài khoản \\
+    Đăng nhập & Khóa 60 giây sau 5 lần sai (theo IP và theo tên) & Dò mật khẩu hàng loạt \\
+    Đăng ký & Tối đa 5 lần mỗi 10 phút mỗi IP & Tạo tài khoản rác \\
+    Phiên & Router chặn mọi gói (trừ đăng nhập/đăng ký) khi chưa đăng nhập; một tài khoản một phiên & Gửi lệnh khi chưa xác thực, đăng nhập trùng \\
+    Dữ liệu & RLS; khóa công khai chỉ đọc view bảng xếp hạng & Đọc trực tiếp bảng \texttt{Users} từ ngoài \\
+    Luật chơi & Server quyết định Hit/Miss & Client gian lận \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+% ---------- Giao diện ----------
+\begin{frame}{Thiết Kế Giao Diện}
+  \centering
+  \begin{columns}[T]
+    \begin{column}{0.31\textwidth}
+      \centering\scriptsize\textbf{Đăng nhập}\par
+      \slideimg[\textwidth]{04-client-login.png}{Màn hình Đăng nhập}
+    \end{column}
+    \begin{column}{0.31\textwidth}
+      \centering\scriptsize\textbf{Sảnh chờ (Lobby)}\par
+      \slideimg[\textwidth]{05-client-lobby.png}{Màn hình Lobby sau khi đăng nhập}
+    \end{column}
+    \begin{column}{0.31\textwidth}
+      \centering\scriptsize\textbf{Bảng xếp hạng}\par
+      \slideimg[\textwidth]{06-client-leaderboard.png}{Form Bảng xếp hạng có dữ liệu}
+    \end{column}
+  \end{columns}
+  \vspace{0.2cm}
+  \begin{columns}[T]
+    \begin{column}{0.31\textwidth}
+      \centering\scriptsize\textbf{Đăng ký}\par
+      \slideimg[\textwidth]{gk-02-register.png}{Màn hình Đăng ký}
+    \end{column}
+    \begin{column}{0.31\textwidth}
+      \centering\scriptsize\textbf{Phòng chờ}\par
+      \slideimg[\textwidth]{gk-03-roomwait.png}{Phòng chờ có 2 người chơi và nút Ready}
+    \end{column}
+    \begin{column}{0.31\textwidth}
+      \centering\scriptsize\textbf{Bàn cờ}\par
+      \slideimg[\textwidth]{gk-04-board.png}{Lưới 10x10 (chụp từ Client)}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Tính năng đặc biệt ----------
+\begin{frame}{Thiết Kế Tính Năng Đặc Biệt}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Radar (quét vùng 3x3)}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item Mỗi người dùng \textbf{một lần mỗi trận}, chọn một ô.
+          \item Server đếm số ô tàu trong vùng $3\times3$ quanh ô đó và chỉ trả về \textbf{con số}, không nói ô nào.
+          \item Dùng Radar thì \textbf{mất một lượt}: phải cân nhắc giữa quét và bắn.
+          \item Server giữ cờ ``đã dùng'' và áp luật đúng lượt: Client không dùng được hai lần.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Gửi kết quả trận ra Discord/Telegram}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item Khi trận kết thúc, Server gọi \textbf{HTTP POST} tới webhook.
+          \item Tin nhắn xuất hiện ngay trên điện thoại: ``A thắng B sau N lượt''.
+          \item Nối mạng game (TCP) với Internet (HTTP) và dịch vụ bên ngoài.
+          \item Chạy ở Task riêng với thời hạn 5 giây; lỗi chỉ ghi log, không làm treo Server. URL webhook để trong biến môi trường.
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.1cm}
+  \begin{alertblock}{Trạng thái}
+    \footnotesize Đang ở bước thiết kế; hiện thực sau khi Server có logic trận (dự kiến 22/11 -- 25/11).
+  \end{alertblock}
+\end{frame}

@@ -1,0 +1,166 @@
+% ============================================================
+% MỤC 1: GIỚI THIỆU (theo khung báo cáo của cô)
+%   tổng quan - bối cảnh/vấn đề - phạm vi - đối tượng - đầu ra - tính năng và tiến độ
+% Chỗ cần ảnh dùng \slideimg: chưa có ảnh thì hiện khung xám ghi tên file.
+% ============================================================
+\section{Giới Thiệu}
+
+% ---------- Tổng quan ----------
+\begin{frame}{Giới Thiệu Đề Tài}
+  \begin{columns}[T]
+    \begin{column}{0.54\textwidth}
+      \begin{block}{Battleship (Bắn tàu) nhiều người chơi qua mạng}
+        \begin{itemize}
+          \item Hai người chơi, mỗi người một lưới $10\times10$ và một đội tàu.
+          \item Hai bên \textbf{lần lượt} gọi tọa độ để bắn; mỗi phát bắn là \textbf{trúng} hoặc \textbf{hụt}.
+          \item Ai đánh chìm hết tàu đối phương trước thì thắng.
+          \item Vị trí tàu của đối phương luôn bị \textbf{che} (sương mù).
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{Vì sao chọn đề tài này cho NT106}
+        Trò chơi theo lượt, dữ liệu nhỏ, nhưng đủ các bài toán mạng thật: kết nối, đồng bộ trạng thái, chống gian lận, ngắt kết nối giữa chừng.
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \centering
+      % [ẢNH] hình minh họa luật chơi / màn hình trận đấu
+      \slideimg[\textwidth]{gk-01-man-hinh-tran.png}{Màn hình bàn cờ 10x10 của game (chụp ở Client). Nếu chưa có gameplay thì chụp lưới 10x10.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Bối cảnh và vấn đề ----------
+\begin{frame}{Bối Cảnh Và Vấn Đề Cần Giải Quyết}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Bối cảnh}
+        \begin{itemize}
+          \item Game cờ/bắn tàu trực tuyến rất phổ biến; nhiều game dùng sẵn thư viện thời gian thực (SignalR, Socket.IO, Photon...).
+          \item Các thư viện này \textbf{che giấu tầng socket}, sinh viên không thấy được cách dữ liệu thật sự đi qua mạng.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{alertblock}{Bài toán nhóm đặt ra}
+        \begin{itemize}
+          \item Tự xây \textbf{giao thức trên TCP thô}: đóng gói, bắt tay, định tuyến gói tin.
+          \item \textbf{Server nắm luật}: Client không được tự quyết Hit/Miss hay nhìn trộm bàn đối thủ.
+          \item Xử lý \textbf{nhiều người chơi đồng thời}, ngắt kết nối đột ngột.
+          \item \textbf{Bảo mật}: mã hóa đường truyền, mật khẩu băm, chống dò mật khẩu.
+          \item Dữ liệu dùng chung qua \textbf{cơ sở dữ liệu trên cloud}.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Phạm vi ----------
+\begin{frame}{Phạm Vi Đề Tài}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Trong phạm vi}
+        \begin{itemize}
+          \item Tài khoản: đăng ký, đăng nhập, trạng thái Online/Offline.
+          \item Sảnh chờ: chat, danh sách phòng, tạo/vào phòng bằng ID.
+          \item Ghép trận tự động (Matchmaking).
+          \item Xếp tàu, bắn theo lượt, sương mù, xử thắng khi đối thủ mất kết nối.
+          \item Lưu lịch sử trận, bảng xếp hạng.
+          \item Bảo mật: AES-128, BCrypt, khóa đăng nhập.
+          \item Tính năng đặc biệt: \textbf{Radar} và \textbf{gửi kết quả trận ra Discord/Telegram}.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{alertblock}{Ngoài phạm vi}
+        \begin{itemize}
+          \item Chế độ khán giả (Spectator).
+          \item Đối thủ máy (AI), bản di động, đồ họa 3D.
+          \item Thanh toán, hệ thống bạn bè nâng cao.
+        \end{itemize}
+      \end{alertblock}
+      \begin{exampleblock}{Nền tảng}
+        Ứng dụng desktop \textbf{Windows} (WinForms, C\# .NET 8). Chạy trên máy cá nhân; demo giữa hai mạng khác nhau bằng Ngrok.
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Đối tượng + đầu ra ----------
+\begin{frame}{Đối Tượng Sử Dụng Và Đầu Ra Mong Đợi}
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Đối tượng sử dụng}
+        \begin{itemize}
+          \item \textbf{Người chơi}: chơi trận, chat, xem bảng xếp hạng.
+          \item \textbf{Người vận hành} (nhóm): chạy Server, quản lý dữ liệu trên Supabase.
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{Vai trò trong nhóm}
+        \begin{tabular}{@{}ll@{}}
+          Đức & Server, phòng, luật trận \\
+          Dũng & Giao diện, cơ sở dữ liệu \\
+          Hoàng & Giao thức, mạng, bảo mật
+        \end{tabular}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Đầu ra}
+        \begin{enumerate}
+          \item \textbf{Server} TCP bất đồng bộ (C\# .NET 8).
+          \item \textbf{Client} WinForms chơi được từ đăng nhập đến hết trận.
+          \item \textbf{Cơ sở dữ liệu} trên cloud (PostgreSQL) kèm REST đọc bảng xếp hạng.
+          \item \textbf{Giao thức mạng} có tài liệu: khung gói tin, bắt tay, mã hóa.
+          \item Báo cáo, slide và bản demo.
+        \end{enumerate}
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Tính năng và tiến độ (1/2) ----------
+\begin{frame}{Tính Năng Và Tiến Độ Giữa Kỳ}
+  \footnotesize
+  \begin{tabularx}{\textwidth}{@{}l Y c@{}}
+    \toprule
+    \textbf{Nhóm} & \textbf{Tính năng} & \textbf{Trạng thái} \\
+    \midrule
+    Tài khoản & Đăng ký, đăng nhập (BCrypt, khóa 5 lần sai), trạng thái Online/Offline & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Phòng & Tạo/vào/rời phòng bằng ID & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Phòng & Kick thành viên (chủ phòng) & \textcolor{orange!80!black}{\textbf{Dở dang}} \\
+    Ghép trận & Tìm trận ngẫu nhiên (Matchmaking) & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Giao tiếp & Chat sảnh & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Giao tiếp & Chat trong trận & \textcolor{gray}{\textbf{Chưa}} \\
+    Gameplay & Xếp tàu, bắn theo lượt, sương mù, tự xử thắng & \textcolor{gray}{\textbf{Chưa}} \\
+    Thống kê & Bảng xếp hạng (REST Supabase) & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Thống kê & Lưu lịch sử đấu & \textcolor{orange!80!black}{\textbf{Dở dang}} \\
+    Bảo mật & Mã hóa AES-128 + BCrypt + giới hạn đăng ký & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Dữ liệu & SQLite hoặc PostgreSQL (Supabase) qua EF Core & \textcolor{green!50!black}{\textbf{Xong}} \\
+    Đặc biệt & Radar, gửi kết quả ra Discord/Telegram & \textcolor{gray}{\textbf{Chưa}} \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.1cm}
+
+  \scriptsize \textbf{Dở dang}: đã có mã nhưng chưa nối đủ vào luồng chơi. \textbf{Chưa}: bắt đầu sau tuần thi, theo lịch ở slide kế tiếp.
+\end{frame}
+
+% ---------- Timeline ----------
+\begin{frame}{Timeline Cập Nhật Đến Hết Học Kỳ}
+  \centering
+  \begin{tikzpicture}[
+    ph/.style={draw=inkblue, rounded corners=3pt, thick, align=center, font=\scriptsize,
+               minimum height=1.9cm, text width=2.35cm, inner sep=3pt},
+    arr/.style={-{Stealth[length=2mm]}, thick, color=brandblue}]
+    \node[ph, fill=paleblue] (a) at (0,0)    {\textbf{10/09 -- 01/11}\\Nền tảng, mạng, đăng nhập, phòng, DB cloud\\[1pt]\textcolor{green!50!black}{\textbf{Phần lớn đã xong}}};
+    \node[ph, fill=gold!40]  (b) at (2.75,0) {\textbf{02/11 -- 15/11}\\Tuần thi (02--08/11), báo cáo giữa kỳ, Matchmaking};
+    \node[ph, fill=white]    (c) at (5.5,0)  {\textbf{16/11 -- 25/11}\\Gameplay, sương mù, lịch sử, Radar, webhook\\[1pt]\textbf{Đóng băng code 25/11}};
+    \node[ph, fill=white]    (d) at (8.25,0) {\textbf{26/11 -- 01/12}\\Kiểm thử, Ngrok, báo cáo Chương 4--5};
+    \node[ph, fill=white]    (e) at (11.0,0) {\textbf{02/12 -- 04/12}\\Đóng gói, chạy thử, báo cáo};
+    \draw[arr] (a) -- (b); \draw[arr] (b) -- (c); \draw[arr] (c) -- (d); \draw[arr] (d) -- (e);
+    \node[font=\scriptsize, align=center] at (5.5,-1.8) {Báo cáo: \textbf{04/12/2026} (dự phòng đến 15/12)};
+  \end{tikzpicture}
+
+  \vspace{0.3cm}
+  \begin{alertblock}{Ghi chú}
+    \footnotesize Việc then chốt là \textbf{logic trận đấu trên Server} (nhận Ready, xếp tàu, bắn, kết thúc). Các mục sương mù, lịch sử trận, Radar và webhook đều phụ thuộc vào mục này.
+  \end{alertblock}
+\end{frame}

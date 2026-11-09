@@ -1,0 +1,230 @@
+% ============================================================
+% MỤC 2: CƠ SỞ LÝ THUYẾT = tech stack, nêu vì sao chọn (không kể lể)
+% Nội dung đối chiếu với code thật: Shared/PacketFraming.cs, CryptoHelper.cs, HandshakeHelper.cs,
+% Server/TcpServer.cs, PacketRouter.cs, Authhandler.cs, Models/AppDbContext.cs
+% ============================================================
+\section{Cơ Sở Lý Thuyết}
+
+% ---------- Client-Server + TCP ----------
+\begin{frame}{Mô Hình Client--Server Và Giao Thức TCP}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Client--Server, Server nắm luật}
+        \begin{itemize}
+          \item Một \textbf{Server} trung tâm, nhiều \textbf{Client} kết nối vào.
+          \item Server giữ trạng thái trận, Client chỉ gửi \textbf{yêu cầu} và hiển thị \textbf{kết quả}.
+          \item Nhờ vậy Client không thể tự báo trúng/hụt hay nhìn bàn của đối thủ (chống gian lận).
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{Vì sao chọn TCP mà không phải UDP}
+        TCP bảo đảm \textbf{đến nơi, đúng thứ tự, không mất gói}. Game theo lượt không cần tốc độ cực thấp, nhưng một lệnh bắn bị mất hay đảo thứ tự sẽ làm sai cả ván.
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \centering
+      \begin{tikzpicture}[
+        box/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
+                    minimum height=0.8cm, minimum width=2.4cm, font=\scriptsize},
+        arr/.style={{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick, color=brandblue}]
+        \node[box, fill=paleblue] (s) at (0,0) {\textbf{Server}\\giữ trạng thái trận};
+        \node[box] (c1) at (-2.2,-2.3) {Client A};
+        \node[box] (c2) at (0,-2.3) {Client B};
+        \node[box] (c3) at (2.2,-2.3) {Client C};
+        \draw[arr] (s) -- (c1); \draw[arr] (s) -- (c2); \draw[arr] (s) -- (c3);
+        \node[font=\tiny, color=brandblue] at (0,-1.2) {TCP};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Socket + Framing ----------
+\begin{frame}{Socket TCP Thô Và Khung Gói Tin (Framing)}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Vấn đề của TCP}
+        TCP là \textbf{dòng byte liên tục}, không có ranh giới giữa các gói: hai gói có thể \textbf{dính} thành một, hoặc một gói bị \textbf{vỡ} làm hai lần đọc.
+      \end{block}
+      \begin{exampleblock}{Cách giải: Length-Prefix}
+        Mỗi gói đi trước bởi \textbf{4 byte} chứa độ dài (big-endian). Bên nhận đọc đủ 4 byte, rồi đọc đúng \texttt{độ dài} byte, mới giải mã.
+      \end{exampleblock}
+      \begin{itemize}
+        \item Dùng \texttt{TcpListener} / \texttt{TcpClient} / \texttt{NetworkStream} (\texttt{System.Net.Sockets}).
+        \item Server từ chối gói có kích thước không hợp lệ, tránh bị gửi gói rác.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \centering
+      \begin{tikzpicture}[
+        cell/.style={draw=inkblue, thick, minimum height=0.9cm, font=\scriptsize, align=center}]
+        \node[cell, fill=gold!50, minimum width=1.5cm] (h) at (0,0) {4 byte\\\texttt{Length}};
+        \node[cell, fill=paleblue, minimum width=3.6cm, right=0pt of h] (p) {Payload (JSON, đã mã hóa)\\\texttt{Length} byte};
+        \node[font=\scriptsize] at (2.6,-1.0) {Một khung gói tin};
+        \draw[thick, color=brandblue, {Stealth[length=2mm]}-{Stealth[length=2mm]}] (-0.75,0.8) -- (4.35,0.8)
+          node[midway, above, font=\scriptsize] {gửi bằng một lần ghi};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Async ----------
+\begin{frame}{Lập Trình Bất Đồng Bộ Và Đa Luồng}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Cách Server phục vụ nhiều người cùng lúc}
+        \begin{itemize}
+          \item \texttt{async/await}: chờ đọc/ghi mạng \textbf{không chặn luồng}.
+          \item Mỗi Client là \textbf{một Task} riêng, một Client chậm không làm kẹt cả Server.
+          \item \texttt{ConcurrentDictionary}: danh sách phiên Online an toàn khi nhiều Task cùng sửa.
+          \item \texttt{SemaphoreSlim(1,1)}: một Client chỉ có \textbf{một Task ghi} vào stream tại một thời điểm.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{alertblock}{Rủi ro nếu không khóa}
+        Hai Task ghi xen kẽ byte vào cùng một stream làm \textbf{vỡ khung gói}; phía nhận đọc ra độ dài sai và lỗi.
+        \par\smallskip
+        Nhóm cũng gặp lỗi tương tự ở Client khi hai nơi cùng đọc một stream; cách sửa là chỉ \textbf{một vòng lặp nền} được đọc stream.
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Giao thức ứng dụng ----------
+\begin{frame}{Giao Thức Ứng Dụng: JSON, Bắt Tay, Định Tuyến}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Gói tin = \texttt{Type} + \texttt{Payload}}
+        \begin{itemize}
+          \item \texttt{Type}: kiểu gói (\texttt{LoginRequest}, \texttt{FireShotRequest}...).
+          \item \texttt{Payload}: dữ liệu (DTO) tuần tự hóa thành \textbf{JSON}.
+          \item JSON dễ đọc, dễ gỡ lỗi; mỗi kiểu gói có một DTO riêng.
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{Bắt tay (Handshake)}
+        Vừa kết nối, Client gửi \textbf{phiên bản giao thức}; Server chấp nhận hoặc ngắt. Tránh Client cũ nói chuyện sai với Server mới.
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{PacketRouter + IPacketHandler}
+        Mỗi nhóm chức năng là một \textbf{handler} đăng ký vào Router theo kiểu gói. Thêm tính năng mới chỉ cần thêm handler, không sửa lõi mạng.
+      \end{block}
+      \scriptsize
+      \begin{tabularx}{\textwidth}{@{}lY@{}}
+        \toprule \textbf{Handler} & \textbf{Xử lý} \\ \midrule
+        \texttt{AuthHandler} & đăng ký, đăng nhập \\
+        \texttt{RoomHandler} & phòng đấu \\
+        \texttt{ChatHandler} & chat sảnh \\
+        \texttt{MatchmakingHandler} & tìm trận \\
+        \bottomrule
+      \end{tabularx}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Mã hóa + băm ----------
+\begin{frame}{Bảo Mật: AES-128 Và BCrypt}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{AES-128-CBC mã hóa đường truyền}
+        \begin{itemize}
+          \item Mã hóa \textbf{đối xứng}: cùng một khóa để mã hóa và giải mã.
+          \item \textbf{IV ngẫu nhiên cho mỗi gói}, gửi kèm; cùng nội dung vẫn ra bản mã khác nhau.
+          \item Khóa 16 byte lấy từ \texttt{SHA-256} của mật khẩu chung hai phía.
+        \end{itemize}
+      \end{block}
+      \begin{alertblock}{Hạn chế đã biết}
+        Khóa chung nằm trong ứng dụng, chưa trao đổi khóa khi kết nối. Hướng nâng cấp: \textbf{TLS} hoặc trao đổi khóa Diffie--Hellman.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{BCrypt băm mật khẩu}
+        \begin{itemize}
+          \item Băm \textbf{một chiều}, có \textbf{salt} ngẫu nhiên, nên hai người cùng mật khẩu vẫn ra hai chuỗi khác nhau.
+          \item Cố tình \textbf{chậm} (hệ số chi phí) để kẻ tấn công dò mật khẩu tốn kém.
+          \item Cơ sở dữ liệu \textbf{không bao giờ} lưu mật khẩu rõ; chuỗi lưu có dạng \texttt{\$2a\$11\$...}
+        \end{itemize}
+      \end{block}
+      \centering
+      % [ẢNH] bằng chứng mật khẩu đã băm
+      \slideimg[0.95\textwidth]{01-supabase-tables.png}{Bảng Users trên Supabase, cột Password là chuỗi bắt đầu bằng $2a$ (che thông tin nhạy cảm)}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- CSDL ----------
+\begin{frame}{Cơ Sở Dữ Liệu: EF Core, SQLite Và PostgreSQL}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Entity Framework Core (ORM, Code-First)}
+        \begin{itemize}
+          \item Viết \textbf{lớp C\#} (\texttt{User}, \texttt{Match}, \texttt{MatchDetail}), EF tự sinh bảng và câu truy vấn.
+          \item Đổi hệ quản trị chỉ cần đổi \textbf{provider}, không viết lại truy vấn.
+          \item Truy vấn qua tham số, chống \textbf{SQL injection}.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{exampleblock}{Hai chế độ chạy}
+        \begin{tabularx}{\textwidth}{@{}lY@{}}
+          \textbf{SQLite} & file cục bộ, chạy offline, dùng khi phát triển \\
+          \textbf{PostgreSQL (Supabase)} & trên cloud, dùng chung cho cả nhóm
+        \end{tabularx}
+      \end{exampleblock}
+      \scriptsize Chọn bằng biến môi trường \texttt{BATTLESHIP\_DB}.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Supabase + REST ----------
+\begin{frame}{Cloud Và Web Service: Supabase, REST, RLS}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Supabase}
+        PostgreSQL trên cloud; tự sinh \textbf{REST API} (PostgREST) cho bảng và view. Truy cập qua \textbf{HTTPS}.
+      \end{block}
+      \begin{block}{RLS (Row Level Security)}
+        Quy tắc phân quyền ngay trong cơ sở dữ liệu. Khóa công khai (\textit{publishable key}) chỉ đọc được view \texttt{leaderboard}; bảng \texttt{Users} (có mật khẩu băm) bị chặn.
+      \end{block}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{alertblock}{Phân tách đường đi của dữ liệu}
+        \begin{itemize}
+          \item \textbf{Đăng nhập, chơi}: qua TCP + AES, Server kiểm tra.
+          \item \textbf{Bảng xếp hạng}: Client đọc thẳng REST, \textbf{chỉ đọc}.
+        \end{itemize}
+      \end{alertblock}
+      \scriptsize Mật khẩu cơ sở dữ liệu chỉ nằm ở Server (biến môi trường), không đưa vào mã nguồn.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Giao diện ----------
+\begin{frame}{Giao Diện Desktop: WinForms Và GDI+}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{Vì sao WinForms}
+        \begin{itemize}
+          \item Có sẵn trong .NET 8, thiết kế giao diện bằng kéo thả, chạy ngay trên Windows.
+          \item Bàn cờ $10\times10$ vẽ bằng \textbf{GDI+} (ô cố định, đổi màu theo trúng/hụt).
+        \end{itemize}
+      \end{block}
+      \begin{alertblock}{Lưu ý khi nối mạng}
+        Dữ liệu từ Server về trên \textbf{luồng nền}, nhưng chỉ luồng giao diện mới được sửa điều khiển. Phải dùng \texttt{Invoke} để tránh lỗi cross-thread.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \scriptsize
+      \begin{tabularx}{\textwidth}{@{}lY@{}}
+        \toprule \textbf{Công nghệ} & \textbf{Dùng để} \\ \midrule
+        C\# .NET 8 & toàn bộ hệ thống \\
+        \texttt{System.Net.Sockets} & TCP thô \\
+        \texttt{System.Text.Json} & đóng gói JSON \\
+        AES, BCrypt.Net & mã hóa, băm \\
+        EF Core, Npgsql & cơ sở dữ liệu \\
+        WinForms, GDI+ & giao diện \\
+        Supabase & cloud, REST \\
+        \bottomrule
+      \end{tabularx}
+    \end{column}
+  \end{columns}
+\end{frame}
