@@ -150,6 +150,8 @@ namespace Battleship.Client
         // NÚT BẤM THOÁT PHÒNG
         private void btnOut_Click(object sender, EventArgs e)
         {
+            this.Parent?.Controls.Remove(this);
+            this.Dispose();
             if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
             {
                 if (string.IsNullOrEmpty(_currentRoomId))
