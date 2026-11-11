@@ -1,12 +1,12 @@
 ﻿using Battleship.Shared;
-using Microsoft.VisualBasic.ApplicationServices;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Net.Http; // Bắt buộc phải có để gọi REST API
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static System.Net.WebRequestMethods;
 
 namespace Battleship.Client
 {
@@ -19,7 +19,6 @@ namespace Battleship.Client
         private const int EM_SETMARGINS = 0xd3;
         private const int EC_LEFTMARGIN = 1;
 
-        // Bổ sung biến theo dõi khóa đăng nhập
         private int failedLoginCount = 0;
         private bool isLockedOut = false;
 
@@ -130,7 +129,6 @@ namespace Battleship.Client
 
         private async void btnLogin_Click(object sender, EventArgs e)
         {
-            // Chặn click nếu đang bị khóa
             if (isLockedOut) return;
 
             string user = boxUsernameTxt.Text.Trim();
@@ -234,7 +232,6 @@ namespace Battleship.Client
             }
             finally
             {
-                // Mở lại nút bấm nếu không trong trạng thái bị khóa
                 if (!isLockedOut)
                 {
                     btnLogin.Enabled = true;
@@ -254,11 +251,10 @@ namespace Battleship.Client
             // Chạy đếm ngược 60 giây và cập nhật trực tiếp lên Label
             for (int i = seconds; i > 0; i--)
             {
-                lblErrorTxt.Text = $"Đăng nhập sai quá nhiều lần. Thử lại sau {i} giây.";
+                lblErrorTxt.Text = $"Thử lại sau {i} giây.";
                 await Task.Delay(1000);
             }
 
-            // Mở khóa sau khi đếm xong
             failedLoginCount = 0;
             isLockedOut = false;
             btnLogin.Enabled = true;
