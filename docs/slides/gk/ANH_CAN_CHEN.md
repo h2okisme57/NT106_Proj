@@ -4,15 +4,16 @@
 
 | Slide | File | Cần chụp gì | Ai chụp | Trạng thái |
 |---|---|---|---|---|
-| Giới thiệu đề tài | `gk-01-man-hinh-tran.png` | Màn hình bàn cờ 10x10 của Client (chưa có gameplay thì chụp lưới 10x10) | Dũng | Chưa có |
+| Giới thiệu đề tài | `gk-01-man-hinh-tran.png` | Màn hình bàn cờ 10x10 của Client (chưa có gameplay thì chụp lưới 10x10) | Dũng | Đã có |
 | Bảo mật: AES và BCrypt | `01-supabase-tables.png` | Bảng `Users` trên Supabase, cột Password bắt đầu bằng `$2a$` | Dũng | Đã có |
 | Máy trạng thái | `12-state-machine.png` | Hình State Machine trong README trên GitHub | Đức | Đã có |
 | Thiết kế giao diện | `04-client-login.png` | Màn hình Đăng nhập | Dũng | Đã có |
 | Thiết kế giao diện | `05-client-lobby.png` | Màn hình Lobby | Dũng | Đã có |
 | Thiết kế giao diện | `06-client-leaderboard.png` | Form Bảng xếp hạng có dữ liệu | Dũng | Đã có |
-| Thiết kế giao diện | `gk-02-register.png` | Màn hình Đăng ký | Dũng | Chưa có |
-| Thiết kế giao diện | `gk-03-roomwait.png` | Phòng chờ có 2 người chơi và nút Ready | Dũng | Chưa có |
-| Thiết kế giao diện | `gk-04-board.png` | Lưới 10x10 (chụp từ Client) | Dũng | Chưa có |
+| Thiết kế giao diện | `gk-02-register.png` | Màn hình Đăng ký | Dũng | Đã có |
+| Thiết kế giao diện | `gk-03-roomwait.png` | Phòng chờ có 2 người chơi và nút Ready | Dũng | Đã có |
+| Thiết kế giao diện | `gk-04-board.png` | Lưới 10x10 (chụp từ Client) | Dũng | Đã có |
 | Kịch bản demo | `10-server-log.png` | Cửa sổ Server có dòng "Đang dùng: Supabase" và "Đang lắng nghe tại cổng 8000" | Hoàng | Chưa có |
+| Quản lý phòng đấu | `11-room-list.png` | Màn hình Join Room có ít nhất một phòng (một Client tạo phòng, Client kia mở Join Room rồi chụp) | Dũng hoặc Hoàng | Chưa có |
 
-Chưa có 4 ảnh `gk-*` (Dũng) và `10-server-log.png` (Hoàng): cần chạy Server + Client rồi chụp (`Win + Shift + S`).
+Còn thiếu: `10-server-log.png` (Hoàng chụp) và `11-room-list.png` (chụp màn hình Join Room có ít nhất một phòng). Chụp bằng `Win + Shift + S`.

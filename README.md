@@ -119,19 +119,31 @@ stateDiagram-v2
 
     state TURN_BASED_PLAY {
         [*] --> Player1_Turn
-        Player1_Turn --> Player1_Turn: P1 bắn trúng
-        Player1_Turn --> Player2_Turn: P1 bắn trượt
-        Player2_Turn --> Player2_Turn: P2 bắn trúng
-        Player2_Turn --> Player1_Turn: P2 bắn trượt
+        Player1_Turn --> Player1_Turn: P1 bắn trúng (Hit/Sunk), được bắn tiếp
+        Player1_Turn --> Player2_Turn: P1 bắn hụt, hoặc dùng Radar, hoặc quá 30 giây
+        Player2_Turn --> Player2_Turn: P2 bắn trúng (Hit/Sunk), được bắn tiếp
+        Player2_Turn --> Player1_Turn: P2 bắn hụt, hoặc dùng Radar, hoặc quá 30 giây
     }
 
-    TURN_BASED_PLAY --> GAME_OVER: Một bên bị chìm hết tàu
-    TURN_BASED_PLAY --> TIMEOUT_HANDLING: Mất kết nối hoặc hết giờ đánh
+    TURN_BASED_PLAY --> GAME_OVER: Chìm tàu cuối cùng của một bên
+    TURN_BASED_PLAY --> TIMEOUT_HANDLING: Mất kết nối (SocketException)
     TIMEOUT_HANDLING --> GAME_OVER: Xử thua người vi phạm
     GAME_OVER --> [*]: Cập nhật CSDL và hủy phòng
 ```
 
-Hiện đã có: `WAITING_FOR_PLAYERS` (tạo/vào phòng, ghép trận). Từ `PLACEMENT_PHASE` trở đi **đang phát triển** (xem timeline).
+### Luật chuyển lượt (đã chốt)
+| Hành động | Kết quả từ Server | Lượt tiếp theo |
+|---|---|---|
+| Bắn tọa độ (X, Y) | Trúng (Hit) hoặc chìm (Sunk) | **Được bắn tiếp** (Server giữ nguyên `CurrentTurn`) |
+| Bắn tọa độ (X, Y) | Hụt (Miss) | **Đổi lượt** sang đối thủ |
+| Bắn chìm tàu cuối cùng của đối phương | Hết tàu | Chuyển thẳng sang `GAME_OVER` |
+| Dùng **Radar** | Trả kết quả vùng quét 3x3 | **Mất 1 lượt**: đổi lượt ngay sau khi trả kết quả |
+| Quá 30 giây mỗi lượt | Hết giờ lượt hiện tại | Tự động đổi lượt |
+| Mất kết nối | Xử thua bên vi phạm | `GAME_OVER` |
+
+Tên các trạng thái trong code (`RoomState`): `WaitingForPlayers`, `PlacementPhase`, `ReadyCheck`, `TurnBasedPlay`, `GameOver`.
+
+Hiện đã có: `WaitingForPlayers` (tạo/vào phòng, ghép trận) và khung chuyển sang `PlacementPhase` khi đủ hai người. Từ `ReadyCheck` trở đi **đang phát triển** (xem timeline).
 
 ## 5. Bảo mật
 | Lớp | Biện pháp |

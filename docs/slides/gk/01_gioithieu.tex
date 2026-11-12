@@ -61,7 +61,7 @@
     Giới hạn tần suất (cửa sổ cố định) & \texttt{LoginRateLimiter} &
       Đếm số lần sai \textbf{theo IP và theo tên}; đủ 5 lần thì khóa 60 giây. Đăng ký tối đa 5 lần mỗi 10 phút mỗi IP. \\
     Xử lý lượt bắn (thiết kế) & Turn Engine &
-      Kiểm tra đúng lượt và ô chưa bắn, tra bản đồ theo ô trong $O(1)$; sau mỗi phát bắn đếm số ô tàu còn lại để biết có chìm hay thắng. \\
+      Kiểm tra đúng lượt và ô chưa bắn, tra bản đồ theo ô trong $O(1)$; đếm số ô tàu còn lại để biết chìm hay thắng. \textbf{Trúng thì giữ lượt, hụt thì đổi lượt}; quá 30 giây tự đổi lượt. \\
     Radar 3x3 (thiết kế) & Turn Engine &
       Duyệt 9 ô quanh ô được chọn và đếm ô có tàu: $O(9)=O(1)$. Chỉ trả về con số, không lộ vị trí. \\
     \bottomrule
