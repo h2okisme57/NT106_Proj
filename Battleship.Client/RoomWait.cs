@@ -10,11 +10,20 @@ namespace Battleship.Client
         private bool _isReady = false;
         private bool _isHost = false;
         private string _currentRoomId = string.Empty;
+        private RoomInfoDto? _pendingRoom;   // thông tin phòng nhận trước khi giao diện sẵn sàng
 
         public RoomWait()
         {
             InitializeComponent();
             this.Load += RoomWait_Load;
+        }
+
+        // Người vào phòng sau nhận JoinRoomResponse khi RoomWait chưa được tạo,
+        // nên joinRoom gọi hàm này để RoomWait hiện đúng tên hai người ngay từ đầu.
+        public void ApplyRoom(RoomInfoDto room)
+        {
+            _pendingRoom = room;
+            if (IsHandleCreated) UpdateRoomUI(room);
         }
 
         private void RoomWait_Load(object sender, EventArgs e)
@@ -27,6 +36,11 @@ namespace Battleship.Client
             if (NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
+            }
+
+            if (_pendingRoom != null)
+            {
+                UpdateRoomUI(_pendingRoom);
             }
         }
 
