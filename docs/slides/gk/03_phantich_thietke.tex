@@ -55,7 +55,7 @@
 \end{frame}
 
 % ---------- Phân quyền ----------
-\begin{frame}{Các Vai Trò Và Phân Quyền}
+\begin{frame}[label=vaitro]{Các Vai Trò Và Phân Quyền}
   \footnotesize
   \begin{tabularx}{\textwidth}{@{}Y c c c@{}}
     \toprule
@@ -77,7 +77,7 @@
 \end{frame}
 
 % ---------- DFD mức 0 ----------
-\begin{frame}{Lược Đồ Dòng Dữ Liệu (DFD) Mức 0}
+\begin{frame}[label=dfd0]{Lược Đồ Dòng Dữ Liệu (DFD) Mức 0}
   \centering
   \begin{tikzpicture}[
     ent/.style={draw=inkblue, fill=gold!40, thick, minimum width=2.6cm, minimum height=1cm, align=center, font=\scriptsize},
@@ -129,7 +129,7 @@
 \end{frame}
 
 % ---------- Kiến trúc ----------
-\begin{frame}{Kiến Trúc Tổng Thể}
+\begin{frame}[label=kientruc]{Kiến Trúc Tổng Thể}
   \centering
   \begin{tikzpicture}[
     box/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
@@ -210,8 +210,8 @@
           \item Client gửi \texttt{FireShotRequest} (tọa độ).
           \item Server kiểm tra: \textbf{đúng lượt?} ô \textbf{chưa bắn?} trận \textbf{đang chơi?} Sai thì bỏ qua.
           \item Server tra bàn của đối thủ, quyết định \textbf{Hit/Miss/Chìm}.
-          \item Server gửi \texttt{ShotResult} cho \textbf{cả hai}, rồi \texttt{TurnChange}.
-          \item Hết tàu: gửi \texttt{GameOver}, ghi kết quả vào cơ sở dữ liệu.
+          \item Server gửi \texttt{ShotResult} cho \textbf{cả hai}; \textbf{trúng thì giữ lượt, hụt thì} \texttt{TurnChange} (luật ở slide sau).
+          \item Chìm tàu cuối cùng: gửi \texttt{GameOver}, ghi kết quả vào cơ sở dữ liệu.
         \end{enumerate}
       \end{block}
       \begin{alertblock}{Đang phát triển}
@@ -234,33 +234,121 @@
   \end{columns}
 \end{frame}
 
+% ---------- Luật chuyển lượt (Đức chốt) ----------
+\begin{frame}{Luật Chuyển Lượt (Đã Chốt)}
+  \footnotesize
+  \begin{tabularx}{\textwidth}{@{}l l Y@{}}
+    \toprule \textbf{Hành động} & \textbf{Kết quả từ Server} & \textbf{Lượt tiếp theo} \\ \midrule
+    Bắn tọa độ $(X,Y)$ & \textbf{Trúng} (Hit) hoặc \textbf{chìm} (Sunk) & \textbf{Được bắn tiếp}: Server giữ nguyên \texttt{CurrentTurn} \\
+    Bắn tọa độ $(X,Y)$ & \textbf{Hụt} (Miss) & \textbf{Đổi lượt} sang đối thủ \\
+    Bắn làm chìm tàu cuối cùng của đối phương & Hết tàu & Chuyển thẳng sang \textbf{GameOver} \\
+    Dùng \textbf{Radar} & Trả kết quả vùng quét & \textbf{Mất 1 lượt}: đổi lượt sang đối thủ ngay sau khi trả kết quả \\
+    Quá \textbf{30 giây} mỗi lượt & Hết giờ lượt hiện tại & Tự động đổi lượt sang đối thủ \\
+    Mất kết nối (\texttt{SocketException}) & Xử thua bên vi phạm & Chuyển sang \textbf{GameOver} \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.2cm}
+  \begin{alertblock}{Nguyên tắc}
+    \scriptsize Server nắm toàn bộ bàn $10\times10$ của hai bên; Client không biết vị trí tàu đối phương. Lệnh bắn ngoài lượt bị Server bỏ qua. Luật do Đức chốt, đã nằm trong thiết kế State Machine.
+  \end{alertblock}
+\end{frame}
+
+% ---------- Lõi TCP Server và quản lý phiên (Đức) ----------
+\begin{frame}{Lõi TCP Server Và Quản Lý Phiên}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Mô hình bất đồng bộ (\texttt{TcpServer})}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item \texttt{TcpListener} lắng nghe; \textbf{mỗi kết nối chạy trên một Task riêng}.
+          \item Danh sách Online quản lý bằng \texttt{Concurrent\allowbreak Dictionary}.
+          \item Điều hướng gói tin qua \texttt{PacketRouter} theo giao diện \texttt{IPacketHandler}.
+        \end{itemize}
+      \end{block}
+      \begin{alertblock}{An toàn luồng và chống sập (\texttt{ClientSession})}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item Đọc trọn gói theo framing 4 byte (\texttt{ReadPacketAsync}).
+          \item Khóa gửi \texttt{SemaphoreSlim(1,1)}: chặn nhiều Task cùng gửi làm đan xen byte.
+          \item Client ngắt đột ngột: bắt \texttt{IOException}/\texttt{SocketException}, dọn phiên, không làm sập Server.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \centering
+      % [ẢNH] log khởi động Server (Hoàng chụp)
+      \slideimg[\textwidth]{10-server-log.png}{Log khởi động TCP Server và kết nối Supabase}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------- Quản lý phòng đấu đa luồng (Đức) ----------
+\begin{frame}{Quản Lý Phòng Đấu Đa Luồng (\texttt{RoomManager})}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{Chống race condition}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item \textbf{Danh sách phòng}: \texttt{Concurrent\allowbreak Dictionary<string, GameRoom>} an toàn khi tạo/xóa phòng đồng thời.
+          \item \textbf{Bên trong phòng}: \texttt{lock(room.RoomLock)} chặn hai người cùng vào một phòng trống ở cùng một mili-giây.
+        \end{itemize}
+      \end{block}
+      \begin{exampleblock}{Luồng gói tin phòng (\texttt{RoomHandler})}
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item Đã hiện thực: \texttt{GetRoomListRequest}, \texttt{CreateRoomRequest}, \texttt{JoinRoomRequest}, \texttt{LeaveRoom}.
+          \item Chủ phòng (Host) thoát thì phòng tự giải tán.
+          \item Kick đã có hàm, \textbf{chưa nối vào Router}.
+        \end{itemize}
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \centering
+      % [ẢNH] danh sách phòng ở Client
+      \slideimg[\textwidth]{11-room-list.png}{Màn hình Join Room có ít nhất một phòng (tạo phòng bằng một Client rồi chụp Client kia)}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 % ---------- State machine ----------
-\begin{frame}{Máy Trạng Thái Của Phòng Và Trận}
+\begin{frame}{Máy Trạng Thái Của Phòng Và Trận (\texttt{RoomState})}
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}
-      \begin{block}{Các trạng thái}
+      \begin{block}{5 trạng thái của \texttt{GameRoom}}
         \begin{itemize}\setlength{\itemsep}{0pt}
-          \item \textbf{Waiting}: chờ đủ 2 người.
-          \item \textbf{Placement}: hai bên xếp tàu.
-          \item \textbf{Ready}: cả hai bấm sẵn sàng.
-          \item \textbf{Playing}: bắn theo lượt.
-          \item \textbf{GameOver}: có người thắng hoặc đối thủ mất kết nối.
+          \item \textbf{WaitingForPlayers}: chờ đủ 2 người (đã code).
+          \item \textbf{PlacementPhase}: tự chuyển khi người thứ hai vào phòng (đã code khung).
+          \item \textbf{ReadyCheck}: chờ cả hai gửi đội hình tàu (đang phát triển).
+          \item \textbf{TurnBasedPlay}: đánh theo lượt, có kiểm soát timeout (đang phát triển).
+          \item \textbf{GameOver}: kết thúc, lưu thống kê và đóng phòng.
         \end{itemize}
       \end{block}
       \begin{exampleblock}{Quy tắc}
-        Chỉ nhận lệnh bắn khi ở \textbf{Playing} và đúng lượt. Bắt đầu trận chỉ khi \textbf{cả hai} Ready.
+        Chỉ nhận lệnh bắn khi ở \textbf{TurnBasedPlay} và đúng lượt. Vào trận chỉ khi \textbf{cả hai} sẵn sàng.
       \end{exampleblock}
     \end{column}
     \begin{column}{0.5\textwidth}
       \centering
-      % [ẢNH] sơ đồ State Machine Đức đã vẽ ở README
-      \slideimg[\textwidth]{12-state-machine.png}{Hình State Machine của Đức (lưu từ README trên GitHub)}
+      \begin{tikzpicture}[
+        st/.style={draw=inkblue, fill=paleblue, rounded corners=3pt, thick, align=center,
+                   minimum height=0.62cm, minimum width=3.3cm, font=\scriptsize},
+        done/.style={fill=green!15},
+        arr/.style={-{Stealth[length=1.8mm]}, thick, color=brandblue},
+        lab/.style={font=\tiny, anchor=west}]
+        \node[st, done] (a) at (0,0)    {WaitingForPlayers};
+        \node[st, done] (b) at (0,-1.1) {PlacementPhase};
+        \node[st]       (c) at (0,-2.2) {ReadyCheck};
+        \node[st]       (d) at (0,-3.3) {TurnBasedPlay};
+        \node[st]       (e) at (0,-4.4) {GameOver};
+        \draw[arr] (a) -- node[lab]{~đủ 2 người} (b);
+        \draw[arr] (b) -- node[lab]{~nhận PlaceShips} (c);
+        \draw[arr] (c) -- node[lab]{~cả hai sẵn sàng} (d);
+        \draw[arr] (d) -- node[lab]{~hết tàu / mất kết nối} (e);
+        \draw[arr] (d.east) to[out=0,in=0,looseness=2.2] node[right,font=\tiny,align=left]{trúng: giữ lượt\\hụt, Radar, 30 s:\\đổi lượt} (d.east);
+      \end{tikzpicture}
+      \par\vspace{1pt}{\tiny Xanh: đã code. Còn lại: đang phát triển.}
     \end{column}
   \end{columns}
 \end{frame}
 
 % ---------- ERD ----------
-\begin{frame}{Thiết Kế Cơ Sở Dữ Liệu (ERD)}
+\begin{frame}[label=erd]{Thiết Kế Cơ Sở Dữ Liệu (ERD)}
   \centering
   \begin{tikzpicture}[
     ent/.style={draw=inkblue, fill=white, rounded corners=2pt, thick, align=left,
@@ -278,7 +366,7 @@
 \end{frame}
 
 % ---------- Bảo mật ----------
-\begin{frame}{Thiết Kế Bảo Mật Nhiều Lớp}
+\begin{frame}[label=bm]{Thiết Kế Bảo Mật Nhiều Lớp}
   \footnotesize
   \begin{tabularx}{\textwidth}{@{}l Y Y@{}}
     \toprule \textbf{Lớp} & \textbf{Biện pháp} & \textbf{Chống lại} \\ \midrule
@@ -328,14 +416,14 @@
 \end{frame}
 
 % ---------- Tính năng đặc biệt ----------
-\begin{frame}{Thiết Kế Tính Năng Đặc Biệt}
+\begin{frame}[label=dacbiet]{Thiết Kế Tính Năng Đặc Biệt}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
       \begin{block}{Radar (quét vùng 3x3)}
         \begin{itemize}\setlength{\itemsep}{0pt}
           \item Mỗi người dùng \textbf{một lần mỗi trận}, chọn một ô.
           \item Server đếm số ô tàu trong vùng $3\times3$ quanh ô đó và chỉ trả về \textbf{con số}, không nói ô nào.
-          \item Dùng Radar thì \textbf{mất một lượt}: phải cân nhắc giữa quét và bắn.
+          \item Dùng Radar thì \textbf{mất một lượt}: sau khi trả kết quả quét, Server đổi lượt sang đối thủ ngay.
           \item Server giữ cờ ``đã dùng'' và áp luật đúng lượt: Client không dùng được hai lần.
         \end{itemize}
       \end{block}
@@ -353,6 +441,6 @@
   \end{columns}
   \vspace{0.1cm}
   \begin{alertblock}{Trạng thái}
-    \footnotesize Đang ở bước thiết kế; hiện thực sau khi Server có logic trận (dự kiến 22/11 -- 25/11).
+    \footnotesize Đang ở bước thiết kế; hiện thực sau khi Server có logic trận (dự kiến 28/11 -- 02/12).
   \end{alertblock}
 \end{frame}

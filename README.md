@@ -101,10 +101,10 @@ Client luôn kết nối tới `127.0.0.1:8000`, nên Server phải chạy **tr�
 | Thống kê | Bảng xếp hạng (REST Supabase) | Xong |
 | Thống kê | Lưu lịch sử đấu | Dở dang (có bảng, chưa ghi dữ liệu) |
 | Bảo mật | AES-128-CBC, BCrypt, giới hạn đăng nhập và đăng ký | Xong |
-| Đặc biệt | Radar 3x3, gửi kết quả trận ra Discord/Telegram | Chưa (dự kiến 22/11 - 25/11) |
+| Đặc biệt | Radar 3x3, gửi kết quả trận ra Discord/Telegram | Chưa (dự kiến 28/11 - 02/12) |
 | Triển khai | Ngrok, chơi giữa hai mạng khác nhau | Chưa (Client đang gán cứng 127.0.0.1) |
 
-Lịch chi tiết: [docs/Timeline_CapNhat_GiuaKy_final.xlsx](docs/Timeline_CapNhat_GiuaKy_final.xlsx). Mốc chính: đóng băng code **25/11**, báo cáo **04/12/2026**.
+Lịch chi tiết: [docs/Timeline_CapNhat_GiuaKy_final.xlsx](docs/Timeline_CapNhat_GiuaKy_final.xlsx). Mốc chính: đóng băng code **02/12**, sẵn sàng báo cáo từ **15/12/2026** (buổi học cuối 25/12/2026).
 
 ## 4. Vòng đời trận đấu (Server-Authoritative State Machine)
 
@@ -119,19 +119,31 @@ stateDiagram-v2
 
     state TURN_BASED_PLAY {
         [*] --> Player1_Turn
-        Player1_Turn --> Player1_Turn: P1 bắn trúng
-        Player1_Turn --> Player2_Turn: P1 bắn trượt
-        Player2_Turn --> Player2_Turn: P2 bắn trúng
-        Player2_Turn --> Player1_Turn: P2 bắn trượt
+        Player1_Turn --> Player1_Turn: P1 bắn trúng (Hit/Sunk), được bắn tiếp
+        Player1_Turn --> Player2_Turn: P1 bắn hụt, hoặc dùng Radar, hoặc quá 30 giây
+        Player2_Turn --> Player2_Turn: P2 bắn trúng (Hit/Sunk), được bắn tiếp
+        Player2_Turn --> Player1_Turn: P2 bắn hụt, hoặc dùng Radar, hoặc quá 30 giây
     }
 
-    TURN_BASED_PLAY --> GAME_OVER: Một bên bị chìm hết tàu
-    TURN_BASED_PLAY --> TIMEOUT_HANDLING: Mất kết nối hoặc hết giờ đánh
+    TURN_BASED_PLAY --> GAME_OVER: Chìm tàu cuối cùng của một bên
+    TURN_BASED_PLAY --> TIMEOUT_HANDLING: Mất kết nối (SocketException)
     TIMEOUT_HANDLING --> GAME_OVER: Xử thua người vi phạm
     GAME_OVER --> [*]: Cập nhật CSDL và hủy phòng
 ```
 
-Hiện đã có: `WAITING_FOR_PLAYERS` (tạo/vào phòng, ghép trận). Từ `PLACEMENT_PHASE` trở đi **đang phát triển** (xem timeline).
+### Luật chuyển lượt (đã chốt)
+| Hành động | Kết quả từ Server | Lượt tiếp theo |
+|---|---|---|
+| Bắn tọa độ (X, Y) | Trúng (Hit) hoặc chìm (Sunk) | **Được bắn tiếp** (Server giữ nguyên `CurrentTurn`) |
+| Bắn tọa độ (X, Y) | Hụt (Miss) | **Đổi lượt** sang đối thủ |
+| Bắn chìm tàu cuối cùng của đối phương | Hết tàu | Chuyển thẳng sang `GAME_OVER` |
+| Dùng **Radar** | Trả kết quả vùng quét 3x3 | **Mất 1 lượt**: đổi lượt ngay sau khi trả kết quả |
+| Quá 30 giây mỗi lượt | Hết giờ lượt hiện tại | Tự động đổi lượt |
+| Mất kết nối | Xử thua bên vi phạm | `GAME_OVER` |
+
+Tên các trạng thái trong code (`RoomState`): `WaitingForPlayers`, `PlacementPhase`, `ReadyCheck`, `TurnBasedPlay`, `GameOver`.
+
+Hiện đã có: `WaitingForPlayers` (tạo/vào phòng, ghép trận) và khung chuyển sang `PlacementPhase` khi đủ hai người. Từ `ReadyCheck` trở đi **đang phát triển** (xem timeline).
 
 ## 5. Bảo mật
 | Lớp | Biện pháp |
