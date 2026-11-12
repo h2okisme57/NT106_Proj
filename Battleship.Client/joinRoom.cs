@@ -96,6 +96,7 @@ namespace Battleship.Client
                     {
                         // 2. KHỞI TẠO VÀ HIỂN THỊ MÀN HÌNH ROOMWAIT
                         RoomWait pnlRoomWait = new RoomWait();
+                        pnlRoomWait.ApplyRoom(response.Room);   // hiện đúng chủ phòng và người chơi
 
                         if (this.Parent != null)
                         {

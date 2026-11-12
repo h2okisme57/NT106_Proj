@@ -83,7 +83,8 @@ namespace Battleship.Server.Handlers
             var dto = packet.DeserializePayload<JoinRoomDto>();
             if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
             {
-                await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, new RoomUpdateDto { Room = null }));
+                await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse,
+                    new JoinRoomResponseDto { Success = false, Message = "Thiếu mã phòng." }));
                 return;
             }
 
@@ -95,8 +96,16 @@ namespace Battleship.Server.Handlers
                 Room = room != null ? ToRoomInfoDto(room) : null
             };
 
-            // Trả JoinRoomResponse về cho Client vừa bấm Join
-            await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, updateDto));
+            // Trả JoinRoomResponse về cho Client vừa bấm Join.
+            // Phải đúng kiểu JoinRoomResponseDto (Success, Message, Room): Client đọc cờ Success,
+            // gửi RoomUpdateDto (chỉ có Room) thì Client hiểu là thất bại và hiện hộp lỗi rỗng.
+            var response = new JoinRoomResponseDto
+            {
+                Success = joined && room != null,
+                Message = (joined && room != null) ? string.Empty : "Không vào được phòng: phòng không tồn tại hoặc đã đầy.",
+                Room = updateDto.Room
+            };
+            await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, response));
 
             // Nếu vào thành công, gửi thêm RoomUpdate cho chủ phòng (Host) để cập nhật UI
             if (joined && room != null)
