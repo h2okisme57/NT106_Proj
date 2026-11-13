@@ -23,7 +23,7 @@ Ghép toàn báo cáo: Hoàng, **09/12 - 13/12**.
 **§3 Phân tích và thiết kế (khoảng 2 trang).**
 - State Machine 5 trạng thái `RoomState` và điều kiện chuyển.
 - Luồng một lượt bắn (client gửi tọa độ, Server kiểm tra đúng lượt, tra bản đồ, trả kết quả cho cả hai).
-- **Luật chuyển lượt đã chốt:** trúng/chìm được bắn tiếp; hụt đổi lượt; Radar mất 1 lượt; quá 30 giây tự đổi lượt; chìm tàu cuối thì GameOver.
+- **Luật chuyển lượt đã chốt:** trúng/chìm được bắn tiếp; hụt đổi lượt; quá 30 giây tự đổi lượt; chìm tàu cuối thì GameOver.
 - Thiết kế RoomManager: vì sao `ConcurrentDictionary` ở danh sách phòng và `lock` ở từng phòng.
 
 **§4 Hiện thực (khoảng 3 trang).** Với mỗi file: làm gì, đoạn code quan trọng (ngắn, 5-15 dòng), so với thiết kế §3 thì xong tới đâu. Phần chưa xong thì ghi rõ là chưa xong.

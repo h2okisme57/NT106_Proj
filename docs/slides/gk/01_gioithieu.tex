@@ -62,8 +62,8 @@
       Đếm số lần sai \textbf{theo IP và theo tên}; đủ 5 lần thì khóa 60 giây. Đăng ký tối đa 5 lần mỗi 10 phút mỗi IP. \\
     Xử lý lượt bắn (thiết kế) & Turn Engine &
       Kiểm tra đúng lượt và ô chưa bắn, tra bản đồ theo ô trong $O(1)$; đếm số ô tàu còn lại để biết chìm hay thắng. \textbf{Trúng thì giữ lượt, hụt thì đổi lượt}; quá 30 giây tự đổi lượt. \\
-    Radar 3x3 (thiết kế) & Turn Engine &
-      Duyệt 9 ô quanh ô được chọn và đếm ô có tàu: $O(9)=O(1)$. Chỉ trả về con số, không lộ vị trí. \\
+    Hàng gửi riêng từng client (thiết kế) & ClientSession &
+      Mỗi client có hàng đợi gửi và một Task ghi riêng; phát gói cho nhiều người chỉ cần bỏ vào hàng, người chậm không làm chậm người khác. \\
     \bottomrule
   \end{tabularx}
 \end{frame}
@@ -112,7 +112,7 @@
         \begin{itemize}
           \item Môn NT106 yêu cầu làm việc \textbf{trực tiếp với socket}, nên cần tự cài giao thức.
           \item Battleship theo lượt: luật đơn giản, nhưng đủ các vấn đề mạng thật (đồng bộ trạng thái, chống gian lận, rớt kết nối).
-          \item Có chỗ để thêm điểm riêng: \textbf{Radar}, \textbf{gửi kết quả trận ra Discord}, \textbf{CSDL trên cloud}.
+          \item Có chỗ để thêm điểm riêng: \textbf{tối ưu hiệu năng và chịu tải}, \textbf{CSDL trên cloud}.
         \end{itemize}
       \end{exampleblock}
     \end{column}
@@ -174,7 +174,7 @@
           \item Đăng ký, đăng nhập, phòng, ghép trận, chat.
           \item Chơi trọn một trận: xếp tàu, bắn theo lượt, thắng thua.
           \item Lưu lịch sử và bảng xếp hạng trên cloud.
-          \item Tính năng riêng: Radar, thông báo kết quả ra Discord.
+          \item Tính năng riêng: tối ưu hiệu năng và chịu tải nhiều người chơi.
         \end{enumerate}
       \end{exampleblock}
     \end{column}
@@ -193,7 +193,7 @@
           \item Xếp tàu, bắn theo lượt, sương mù, xử thắng khi đối thủ mất kết nối.
           \item Lưu lịch sử trận, bảng xếp hạng.
           \item Bảo mật: AES-128, BCrypt, khóa đăng nhập.
-          \item Tính năng đặc biệt: \textbf{Radar} và \textbf{gửi kết quả trận ra Discord}.
+          \item Tính năng đặc biệt: \textbf{tối ưu hiệu năng và chịu tải nhiều người chơi}.
         \end{itemize}
       \end{block}
     \end{column}
@@ -212,30 +212,65 @@
   \end{columns}
 \end{frame}
 
-% ---------- Tính năng và tiến độ ----------
-\begin{frame}[label=tinhnang]{Tính Năng Và Tiến Độ Giữa Kỳ}
-  \footnotesize
+% ---------- Chức năng Server (có dấu tích) ----------
+\newcommand{\tickDone}{\textcolor{green!50!black}{$\checkmark$}}
+\newcommand{\tickHalf}{\textcolor{orange!80!black}{$\circ$}}
+\newcommand{\tickNone}{\textcolor{gray}{$-$}}
+
+\begin{frame}[label=tinhnangsv]{Chức Năng Phía Server}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.05}
   \begin{tabularx}{\textwidth}{@{}l Y c@{}}
-    \toprule
-    \textbf{Nhóm} & \textbf{Tính năng} & \textbf{Trạng thái} \\
-    \midrule
-    Tài khoản & Đăng ký, đăng nhập (BCrypt, khóa 5 lần sai), trạng thái Online/Offline & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Phòng & Tạo/vào/rời phòng bằng ID & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Phòng & Kick thành viên (chủ phòng) & \textcolor{orange!80!black}{\textbf{Dở dang}} \\
-    Ghép trận & Tìm trận ngẫu nhiên (Matchmaking) & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Giao tiếp & Chat sảnh & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Giao tiếp & Chat trong trận & \textcolor{gray}{\textbf{Chưa}} \\
-    Gameplay & Xếp tàu, bắn theo lượt, sương mù, tự xử thắng & \textcolor{gray}{\textbf{Chưa}} \\
-    Thống kê & Bảng xếp hạng (REST Supabase) & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Thống kê & Lưu lịch sử đấu & \textcolor{orange!80!black}{\textbf{Dở dang}} \\
-    Bảo mật & Mã hóa AES-128 + BCrypt + giới hạn đăng ký & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Dữ liệu & SQLite hoặc PostgreSQL (Supabase) qua EF Core & \textcolor{green!50!black}{\textbf{Xong}} \\
-    Đặc biệt & Radar, gửi kết quả ra Discord & \textcolor{gray}{\textbf{Chưa}} \\
+    \toprule \textbf{Nhóm} & \textbf{Chức năng} & \textbf{Trạng thái} \\ \midrule
+    Mạng & Nhận kết nối TCP bất đồng bộ, mỗi Client một Task & \tickDone \\
+    Mạng & Khung gói 4 byte, bắt tay kiểm tra phiên bản giao thức & \tickDone \\
+    Mạng & Mã hóa AES-128-CBC mọi gói tin & \tickDone \\
+    Mạng & PacketRouter chuyển gói tới handler của từng chức năng & \tickDone \\
+    Tài khoản & Đăng ký, đăng nhập, băm mật khẩu BCrypt & \tickDone \\
+    Tài khoản & Quên mật khẩu: gửi mã xác nhận qua email (SMTP), đặt lại mật khẩu & \tickNone \\
+    Tài khoản & Đăng xuất: dọn phiên, gỡ khỏi Online, hủy hàng đợi, rời phòng & \tickNone \\
+    Bảo mật & Khóa 60 giây sau 5 lần sai, giới hạn số lần đăng ký & \tickDone \\
+    Bảo mật & Chặn gói khi chưa đăng nhập, một tài khoản một phiên & \tickDone \\
+    Sảnh & Danh sách Online/Offline, chat sảnh & \tickDone \\
+    Phòng & Tạo phòng, vào phòng, rời phòng & \tickDone \\
+    Phòng & Kick thành viên (có hàm, chưa nối vào Router) & \tickHalf \\
+    Ghép trận & Hàng đợi ghép cặp tự động & \tickDone \\
+    Dữ liệu & SQLite / PostgreSQL (Supabase), view bảng xếp hạng & \tickDone \\
+    Dữ liệu & Ghi lịch sử trận (có bảng, chưa ghi dữ liệu) & \tickHalf \\
+    Trận đấu & Ready, xếp tàu, bắn theo lượt, GameOver, timer 30 giây, xử thắng khi rớt mạng & \tickNone \\
+    Đặc biệt & Tối ưu hiệu năng, chịu tải nhiều người chơi (hàng gửi riêng, mã hóa một lần, đo trước và sau) & \tickNone \\
     \bottomrule
   \end{tabularx}
-  \vspace{0.1cm}
+  \par\vspace{0.05cm}
+  {\tiny \tickDone{} xong \quad \tickHalf{} làm dở (đã có mã, chưa dùng được đầy đủ) \quad \tickNone{} chưa làm (theo lịch ở slide Timeline)}
+\end{frame}
 
-  \scriptsize \textbf{Dở dang}: đã có mã nhưng chưa nối đủ vào luồng chơi. \textbf{Chưa}: bắt đầu sau tuần thi, theo lịch ở slide kế tiếp.
+% ---------- Chức năng Client (có dấu tích) ----------
+\begin{frame}[label=tinhnangcl]{Chức Năng Phía Client}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.05}
+  \begin{tabularx}{\textwidth}{@{}l Y c@{}}
+    \toprule \textbf{Nhóm} & \textbf{Chức năng} & \textbf{Trạng thái} \\ \midrule
+    Mạng & NetworkManager: kết nối, bắt tay, vòng nhận gói chạy nền & \tickDone \\
+    Mạng & Mã hóa AES mọi gói gửi và nhận & \tickDone \\
+    Tài khoản & Màn hình đăng nhập, khóa có đếm ngược 60 giây & \tickDone \\
+    Tài khoản & Màn hình đăng ký & \tickDone \\
+    Tài khoản & Quên mật khẩu: xin mã, đặt lại; thêm ô email khi đăng ký & \tickNone \\
+    Tài khoản & Nút đăng xuất, quay về màn hình đăng nhập & \tickNone \\
+    Tài khoản & Hồ sơ người chơi (Profile) & \tickDone \\
+    Sảnh & Lobby và chat sảnh & \tickDone \\
+    Phòng & Tạo phòng, danh sách phòng, vào phòng bằng ID & \tickDone \\
+    Ghép trận & Nút Find Opponent, vào phòng chờ khi được ghép & \tickDone \\
+    Phòng chờ & Hiện tên hai người chơi & \tickDone \\
+    Phòng chờ & Nút Ready đồng bộ với đối thủ (hiện chỉ đổi chữ) & \tickNone \\
+    Thống kê & Bảng xếp hạng đọc qua REST & \tickDone \\
+    Trận đấu & Bàn cờ $10\times10$ (giao diện) & \tickDone \\
+    Trận đấu & Đặt, xoay tàu, kiểm tra hợp lệ (chưa nối mạng) & \tickHalf \\
+    Trận đấu & Bắn, hiện trúng/hụt, sương mù, chat trong trận & \tickNone \\
+    \bottomrule
+  \end{tabularx}
+  \par\vspace{0.05cm}
+  {\tiny \tickDone{} xong \quad \tickHalf{} làm dở (đã có mã, chưa dùng được đầy đủ) \quad \tickNone{} chưa làm (theo lịch ở slide Timeline)}
 \end{frame}
 
 % ---------- Timeline ----------
@@ -247,7 +282,7 @@
     arr/.style={-{Stealth[length=2mm]}, thick, color=brandblue}]
     \node[ph, fill=paleblue] (a) at (0,0)    {\textbf{10/09 -- 01/11}\\Nền tảng, mạng, đăng nhập, phòng, DB cloud\\[1pt]\textcolor{green!50!black}{\textbf{Phần lớn đã xong}}};
     \node[ph, fill=gold!40]  (b) at (2.75,0) {\textbf{02/11 -- 15/11}\\Tuần thi (02--08/11), báo cáo giữa kỳ, Matchmaking};
-    \node[ph, fill=white]    (c) at (5.5,0)  {\textbf{16/11 -- 02/12}\\Gameplay chia nhiều nhịp: xếp tàu, luật trận, sương mù, lịch sử, Radar\\[1pt]\textbf{Đóng băng code 02/12}};
+    \node[ph, fill=white]    (c) at (5.5,0)  {\textbf{16/11 -- 02/12}\\Gameplay chia nhiều nhịp: xếp tàu, luật trận, tối ưu hiệu năng, quên mật khẩu, sương mù\\[1pt]\textbf{Đóng băng code 02/12}};
     \node[ph, fill=white]    (d) at (8.25,0) {\textbf{03/12 -- 08/12}\\Kiểm thử, Ngrok, báo cáo Chương 4--5};
     \node[ph, fill=white]    (e) at (11.0,0) {\textbf{09/12 -- 14/12}\\Đóng gói, chạy thử, hoàn thiện báo cáo};
     \draw[arr] (a) -- (b); \draw[arr] (b) -- (c); \draw[arr] (c) -- (d); \draw[arr] (d) -- (e);
@@ -256,6 +291,6 @@
 
   \vspace{0.3cm}
   \begin{alertblock}{Ghi chú}
-    \footnotesize Việc then chốt là \textbf{logic trận đấu trên Server} (nhận Ready, xếp tàu, bắn, kết thúc). Các mục sương mù, lịch sử trận, Radar và webhook đều phụ thuộc vào mục này.
+    \footnotesize Việc then chốt là \textbf{logic trận đấu trên Server} (nhận Ready, xếp tàu, bắn, kết thúc). Các mục sương mù và lịch sử trận đều phụ thuộc vào mục này.
   \end{alertblock}
 \end{frame}
