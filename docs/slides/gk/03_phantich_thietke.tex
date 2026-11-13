@@ -88,7 +88,7 @@
     \node[proc] (p) at (0,0) {Hệ thống\\Battleship};
     \node[ent] (u) at (-5.6,0.6) {Người chơi};
     \node[ent] (o) at (-5.6,-1.8) {Người vận hành};
-    \node[ent] (w) at (5.6,1.6) {Discord /\\Telegram};
+    \node[ent] (w) at (5.6,1.6) {Discord};
     \node[store] (d) at (5.6,-0.6) {D: Cơ sở dữ liệu\\(Users, Matches, MatchDetails)};
     \draw[flow] ([yshift=4pt]u.east) -- node[lab, above]{yêu cầu: đăng nhập, phòng,\\tìm trận, bắn, chat} ([yshift=10pt]p.west);
     \draw[flow] ([yshift=-4pt]p.west) -- node[lab, below]{kết quả, trạng thái trận,\\danh sách Online} ([yshift=-4pt]u.east);
@@ -138,10 +138,10 @@
     one/.style={-{Stealth[length=2mm]}, thick, color=brandblue, dashed}]
     \node[box, fill=paleblue, minimum width=2.6cm] (c) at (0,0) {\textbf{Client}\\WinForms\\\texttt{NetworkManager}};
     \node[box, fill=paleblue, minimum width=3.4cm] (s) at (5.2,0) {\textbf{Server}\\\texttt{TcpServer} $\rightarrow$ \texttt{PacketRouter}\\$\rightarrow$ Handler};
-    \node[box, minimum width=2.6cm] (d) at (10.4,0.9) {\textbf{PostgreSQL}\\Supabase (cloud)};
-    \node[box, minimum width=2.6cm] (l) at (10.4,-0.9) {\textbf{SQLite}\\(chạy offline)};
+    \node[box, minimum width=2.6cm] (l) at (10.4,0.9) {\textbf{SQLite}\\(chạy offline)};
+    \node[box, minimum width=2.6cm] (d) at (10.4,-0.9) {\textbf{PostgreSQL}\\Supabase (cloud)};
     \node[box, minimum width=2.6cm] (r) at (5.2,-2.5) {\textbf{REST (HTTPS)}\\view \texttt{leaderboard}};
-    \node[box, minimum width=2.6cm] (w) at (5.2,2.4) {\textbf{Webhook}\\Discord/Telegram};
+    \node[box, minimum width=2.6cm] (w) at (5.2,2.4) {\textbf{Webhook}\\Discord};
     \draw[arr] (c) -- node[above,font=\tiny, align=center]{TCP\\+ AES-128} (s);
     \draw[arr] (s) -- node[above,font=\tiny]{EF Core} (d);
     \draw[arr] (s) -- (l);
@@ -429,7 +429,7 @@
       \end{block}
     \end{column}
     \begin{column}{0.48\textwidth}
-      \begin{block}{Gửi kết quả trận ra Discord/Telegram}
+      \begin{block}{Gửi kết quả trận ra Discord}
         \begin{itemize}\setlength{\itemsep}{0pt}
           \item Khi trận kết thúc, Server gọi \textbf{HTTP POST} tới webhook.
           \item Tin nhắn xuất hiện ngay trên điện thoại: ``A thắng B sau N lượt''.

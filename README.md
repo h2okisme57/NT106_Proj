@@ -17,7 +17,7 @@ flowchart LR
     S -. "EF Core (offline)" .-> LT[("SQLite<br/>battleship.db")]
     C -. "HTTPS, chỉ đọc<br/>view leaderboard" .-> R["REST (PostgREST)"]
     R --> DB
-    S -. "HTTP POST (dự kiến)" .-> W["Webhook<br/>Discord/Telegram"]
+    S -. "HTTP POST (dự kiến)" .-> W["Webhook<br/>Discord"]
 ```
 
 - **Nét liền**: đường chính (TCP, cơ sở dữ liệu). **Nét đứt**: đường phụ hoặc chưa làm xong.
@@ -101,7 +101,7 @@ Client luôn kết nối tới `127.0.0.1:8000`, nên Server phải chạy **tr�
 | Thống kê | Bảng xếp hạng (REST Supabase) | Xong |
 | Thống kê | Lưu lịch sử đấu | Dở dang (có bảng, chưa ghi dữ liệu) |
 | Bảo mật | AES-128-CBC, BCrypt, giới hạn đăng nhập và đăng ký | Xong |
-| Đặc biệt | Radar 3x3, gửi kết quả trận ra Discord/Telegram | Chưa (dự kiến 28/11 - 02/12) |
+| Đặc biệt | Radar 3x3, gửi kết quả trận ra Discord | Chưa (dự kiến 28/11 - 02/12) |
 | Triển khai | Ngrok, chơi giữa hai mạng khác nhau | Chưa (Client đang gán cứng 127.0.0.1) |
 
 Lịch chi tiết: [docs/Timeline_CapNhat_GiuaKy_final.xlsx](docs/Timeline_CapNhat_GiuaKy_final.xlsx). Mốc chính: đóng băng code **02/12**, sẵn sàng báo cáo từ **15/12/2026** (buổi học cuối 25/12/2026).
