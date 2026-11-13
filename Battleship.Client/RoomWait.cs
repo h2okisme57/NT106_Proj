@@ -11,7 +11,6 @@ namespace Battleship.Client
         private bool _isHost = false;
         private string _currentRoomId = string.Empty;
         private RoomInfoDto? _pendingRoom;   // thông tin phòng nhận trước khi giao diện sẵn sàng
-
         public RoomWait()
         {
             InitializeComponent();
