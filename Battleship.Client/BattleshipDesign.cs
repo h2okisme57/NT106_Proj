@@ -41,7 +41,7 @@ namespace Battleship.Client
             SetupPlayerNames();
             SetupPlayerBoard();
 
-
+            //Lang nghe server
             if (NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
