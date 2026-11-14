@@ -100,7 +100,7 @@ namespace Battleship.Client
             }
         }
 
-        private void CreateTransparentChatBox()
+        public void CreateTransparentChatBox()
         {
             chatPanel = new FlowLayoutPanel();
             chatPanel.Name = "chatPanel";
@@ -121,6 +121,8 @@ namespace Battleship.Client
 
             // Ẩn khi click ra vùng trống trên Lobby
             this.Click += Lobby_Click;
+
+
         }
 
         private void AddChatMessage(string sender, string content)
@@ -392,5 +394,12 @@ namespace Battleship.Client
         private void textBox1_TextChanged(object sender, EventArgs e) { }
         private void Lobby_Load_1(object sender, EventArgs e) { }
         private void btnLeaderboard_Click(object sender, EventArgs e) { }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            frmMain.SwitchToGameScreen();
+        }
+
+
     }
 }

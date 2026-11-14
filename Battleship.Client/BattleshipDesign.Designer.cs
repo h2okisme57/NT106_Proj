@@ -30,6 +30,7 @@
         {
             tableLayoutPanel1 = new TableLayoutPanel();
             panel9 = new Panel();
+            btnChat = new Button();
             label5 = new Label();
             label7 = new Label();
             label8 = new Label();
@@ -108,6 +109,8 @@
             label39 = new Label();
             label40 = new Label();
             pnlPlayerBoard = new Panel();
+            chatPanel = new FlowLayoutPanel();
+            boxChat = new TextBox();
             tableLayoutPanel1.SuspendLayout();
             panel9.SuspendLayout();
             panel2.SuspendLayout();
@@ -144,6 +147,7 @@
             // panel9
             // 
             panel9.BackColor = Color.FromArgb(25, 55, 109);
+            panel9.Controls.Add(btnChat);
             panel9.Controls.Add(label5);
             panel9.Controls.Add(label7);
             panel9.Controls.Add(label8);
@@ -159,6 +163,18 @@
             panel9.Size = new Size(340, 204);
             panel9.TabIndex = 2;
             panel9.Paint += panel9_Paint;
+            // 
+            // btnChat
+            // 
+            btnChat.BackColor = Color.FromArgb(11, 36, 71);
+            btnChat.FlatStyle = FlatStyle.Flat;
+            btnChat.Location = new Point(225, 3);
+            btnChat.Name = "btnChat";
+            btnChat.Size = new Size(112, 34);
+            btnChat.TabIndex = 11;
+            btnChat.Text = "Chat";
+            btnChat.UseVisualStyleBackColor = false;
+            btnChat.Click += btnChat_Click;
             // 
             // label5
             // 
@@ -1192,11 +1208,33 @@
             pnlPlayerBoard.TabIndex = 4;
             pnlPlayerBoard.Paint += pnlPlayerBoard_Paint;
             // 
+            // chatPanel
+            // 
+            chatPanel.BackColor = Color.Black;
+            chatPanel.Location = new Point(597, 62);
+            chatPanel.Name = "chatPanel";
+            chatPanel.Size = new Size(378, 224);
+            chatPanel.TabIndex = 12;
+            // 
+            // boxChat
+            // 
+            boxChat.BackColor = SystemColors.MenuText;
+            boxChat.BorderStyle = BorderStyle.None;
+            boxChat.ForeColor = SystemColors.Window;
+            boxChat.Location = new Point(597, 37);
+            boxChat.Name = "boxChat";
+            boxChat.Size = new Size(378, 24);
+            boxChat.TabIndex = 0;
+            boxChat.TextChanged += boxChat_TextChanged;
+            boxChat.KeyDown += boxChat_KeyDown;
+            // 
             // BattleshipDesign
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(11, 36, 71);
+            Controls.Add(boxChat);
+            Controls.Add(chatPanel);
             Controls.Add(tableLayoutPanel2);
             Controls.Add(tableLayoutPanel1);
             ForeColor = Color.FromArgb(88, 160, 200);
@@ -1224,6 +1262,7 @@
             tableLayoutPanel5.ResumeLayout(false);
             tableLayoutPanel5.PerformLayout();
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
@@ -1308,5 +1347,7 @@
         private Label label50;
         private Label lblEnemyName;
         private Label lblPlayerName;
+        private Button btnChat;
+        private FlowLayoutPanel chatPanel;
     }
 }

@@ -14,12 +14,16 @@ namespace Battleship.Client
         }
 
         // Chuyển qua màn hình trận đấu Battleship
-        public void SwitchToGameScreen()
+        public static void SwitchToGameScreen()
         {
             // 1. TỐI ƯU KÍCH THƯỚC: Dùng ClientSize thay vì Size
             // Thiết lập vùng làm việc thực tế bên trong Form đủ rộng (1100x800) để không bị đè/cắt xén control
-            this.ClientSize = new Size(978, 742);
-            this.StartPosition = FormStartPosition.CenterScreen;
+            frmMain mainForm = Application.OpenForms["frmMain"] as frmMain;
+            if (mainForm != null)
+            {
+                mainForm.ClientSize = new Size(978, 742);
+                mainForm.StartPosition = FormStartPosition.CenterScreen;
+            }
 
             // 2. GIẢ LẬP DỮ LIỆU TRẬN ĐẤU (MatchFoundDto) ĐỂ TEST MÀN HÌNH
             MatchFoundDto dummyMatch = new MatchFoundDto
@@ -34,19 +38,22 @@ namespace Battleship.Client
         }
 
         // Chuyển đổi màn hình hiển thị trong pnlContainer sang UserControl khác
-        public void SwitchView(UserControl uc)
+        public static void SwitchView(UserControl uc)
         {
-            pnlContainer.Controls.Clear();
-            uc.Dock = DockStyle.Fill;
-            pnlContainer.Controls.Add(uc);
-            uc.BringToFront();
+            frmMain mainForm = Application.OpenForms["frmMain"] as frmMain;
+            if (mainForm != null)
+            {
+                mainForm.pnlContainer.Controls.Clear();
+                uc.Dock = DockStyle.Fill;
+                mainForm.pnlContainer.Controls.Add(uc);
+                uc.BringToFront();
+            }
         }
 
         // Khi Form Main vừa mở lên, tự động hiển thị màn hình chơi game
         private void frmMain_Load(object sender, EventArgs e)
         {
             SwitchView(new Lobby());
-            
         }
 
         public void TestBoardGame()

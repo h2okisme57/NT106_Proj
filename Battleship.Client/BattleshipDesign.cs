@@ -2,7 +2,10 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Net.NetworkInformation;
 using System.Windows.Forms;
+using Battleship.Client;
+
 
 namespace Battleship.Client
 {
@@ -12,6 +15,12 @@ namespace Battleship.Client
         private BoardGame playerBoard;
         public BoardGame EnemyBoard;
         private MatchFoundDto _currentMatch;
+
+
+        private TextBox boxChat;
+
+        private bool _Chat = false;
+
 
         public BattleshipDesign()
         {
@@ -31,12 +40,29 @@ namespace Battleship.Client
             // 3. Sau đó mới gọi hàm set tên (nếu gọi ngược lại tên sẽ bị trống)
             SetupPlayerNames();
             SetupPlayerBoard();
+
+            //Lang nghe server
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
+            }
+        }
+
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
+            }
+            base.OnHandleDestroyed(e);
         }
 
         // Sự kiện này sẽ tự động chạy sau khi các Control đã có kích thước thực tế
         private void BattleshipDesign_Load(object sender, EventArgs e)
         {
             SetDefaultGrayColors();
+            CreateTransparentChatBox();
         }
 
         private void SetupPlayerBoard()
@@ -66,6 +92,49 @@ namespace Battleship.Client
             tableLayoutPanel3.CellPaint += tableLayoutPanel3_CellPaint;
             tableLayoutPanel5.CellPaint += tableLayoutPanel5_CellPaint;
             tableLayoutPanel6.CellPaint += tableLayoutPanel6_CellPaint;
+        }
+
+
+        private void AddChatMessage(string sender, string content)
+        {
+            if (chatPanel.IsDisposed || !chatPanel.IsHandleCreated) return;
+
+            // Dùng Invoke để đảm bảo cập nhật UI trên Main Thread
+            chatPanel.Invoke(new Action(() =>
+            {
+                Label msgLabel = new Label();
+                msgLabel.Text = $"[{sender}]: {content}";
+                msgLabel.BackColor = Color.Transparent;
+                msgLabel.ForeColor = Color.White;
+                msgLabel.AutoSize = true;
+                msgLabel.MaximumSize = new Size(370, 0);
+
+                chatPanel.Controls.Add(msgLabel);
+
+                // Tự động hiển thị khung chat khi có tin nhắn mới tới
+                chatPanel.Visible = true;
+
+                chatPanel.ScrollControlIntoView(msgLabel);
+            }));
+        }
+
+        private async void NetworkManager_OnPacketReceived(Packet packet)
+        {
+            if (packet.Type == PacketType.ChatMessage)
+            {
+                try
+                {
+                    var chatMsg = packet.DeserializePayload<ChatMessageDto>();
+                    if (chatMsg != null)
+                    {
+                        AddChatMessage(chatMsg.Sender, chatMsg.Content);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi giải mã tin nhắn: {ex.Message}");
+                }
+            }
         }
 
         private void PlayerBoard_OnCellClicked(int col, int row)
@@ -227,51 +296,67 @@ namespace Battleship.Client
             pnlOutlinePaint(panel9, e);
         }
 
-        // --- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN ---
-        private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e) { }
-        private void label4_Click(object sender, EventArgs e) { }
-        private void panel8_Paint(object sender, PaintEventArgs e) { }
-        private void tablePlayerConditionCarrier_Paint(object sender, PaintEventArgs e) { }
-        private void tablePlayerConditionSubmarine_Paint(object sender, PaintEventArgs e) { }
-        private void tablePlayerConditionBattleship_Paint(object sender, PaintEventArgs e) { }
-        private void tablePlayerConditionCruiser_Paint(object sender, PaintEventArgs e) { }
-        private void tablePlayerConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
-        private void TxtTimer_TextChanged(object sender, EventArgs e) { }
-        private void panel1_Paint(object sender, PaintEventArgs e) { }
-        private void TableShots_Paint(object sender, PaintEventArgs e) { }
-        private void lblShots_Click(object sender, EventArgs e) { }
-        private void tableEnemyConditionCarrier_Paint(object sender, PaintEventArgs e) { }
-        private void tableEnemyConditionSubmarine_Paint(object sender, PaintEventArgs e) { }
-        private void tableEnemyConditionBattleship_Paint(object sender, PaintEventArgs e) { }
-        private void tableEnemyConditionCrusier_Paint(object sender, PaintEventArgs e) { }
-        private void tableEnemyConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
-        private void pnlPlayerBoard_Paint(object sender, PaintEventArgs e) { }
-        private void pnlPlayerName_Paint(object sender, PaintEventArgs e)
+
+        public void CreateTransparentChatBox()
         {
-            pnlOutlinePaint(pnlPlayerName, e);
+            // Cài đặt thuộc tính cho chatPanel (đã kéo thả từ ToolBox)
+            if (chatPanel != null)
+            {
+                chatPanel.AutoScroll = true;
+                chatPanel.BackColor = Color.FromArgb(180, 10, 20, 40); // Nền trong suốt, ngả xanh đen
+                chatPanel.FlowDirection = FlowDirection.TopDown;
+                chatPanel.WrapContents = false;
+                chatPanel.Visible = false; // Mặc định ẩn khi mới vào game
+                chatPanel.BringToFront();  // Ép nổi lên trên cùng, đè lên bảng lưới
+            }
+
+            // Cài đặt thuộc tính cho boxChat (đã kéo thả từ ToolBox)
+            if (boxChat != null)
+            {
+                boxChat.BorderStyle = BorderStyle.FixedSingle;
+                boxChat.Visible = false; // Mặc định ẩn khi mới vào game
+                boxChat.BringToFront();  // Ép nổi lên trên cùng
+            }
         }
 
-        private void pnlEnemyName_Paint(object sender, PaintEventArgs e)
+        private async void boxChat_KeyDown(object sender, KeyEventArgs e)
         {
-            pnlOutlinePaint(pnlEnemyName, e);
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true; // Ngăn tiếng píp beep của Windows
+                string messageText = boxChat.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(messageText)) return;
+
+                if (!NetworkManager.Instance.IsConnected)
+                {
+                    AddChatMessage("Hệ thống", "Chưa kết nối đến máy chủ!");
+                    return;
+                }
+
+                try
+                {
+                    var chatMsg = new ChatMessageDto
+                    {
+                        Sender = PlayerProfile.Username,
+                        Content = messageText
+                    };
+
+                    var packet = Packet.Create(PacketType.ChatMessage, chatMsg);
+
+                    boxChat.Clear();
+
+                    await NetworkManager.Instance.SendAsync(packet);
+                }
+                catch (Exception ex)
+                {
+                    AddChatMessage("Hệ thống", $"Lỗi gửi tin nhắn: {ex.Message}");
+                }
+            }
         }
 
-        private void pnlEnemyName_Paint_1(object sender, PaintEventArgs e)
-        {
-            pnlOutlinePaint(pnlEnemyName, e);
-        }
 
-        private void tableLayoutPanel3_Paint(object sender, PaintEventArgs e)
-        {
 
-        }
-
-        private void label22_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        // THAY THẾ BẰNG 3 HÀM NÀY:
         private void tableLayoutPanel4_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
         {
             pnlOutlinePaintUP(tableLayoutPanel4, e);
@@ -291,6 +376,89 @@ namespace Battleship.Client
             pnlOutlinePaintleft(tableLayoutPanel3, e);
         }
 
+
+
+        private void pnlPlayerName_Paint(object sender, PaintEventArgs e)
+        {
+            pnlOutlinePaint(pnlPlayerName, e);
+        }
+
+        private void pnlEnemyName_Paint(object sender, PaintEventArgs e)
+        {
+            pnlOutlinePaint(pnlEnemyName, e);
+        }
+
+        private void pnlEnemyName_Paint_1(object sender, PaintEventArgs e)
+        {
+            pnlOutlinePaint(pnlEnemyName, e);
+        }
+
+
+        private void btnChat_Click(object sender, EventArgs e)
+        {
+            _Chat = !_Chat;
+
+            if (_Chat)
+            {
+                btnChat.Text = "Cancel";
+
+                // Hiện cả khung chat và ô nhập
+                if (chatPanel != null) chatPanel.Visible = true;
+                if (boxChat != null)
+                {
+                    boxChat.Visible = true;
+                    boxChat.Focus(); // Nháy con trỏ chuột luôn vào ô nhập
+                }
+            }
+            else
+            {
+                btnChat.Text = "Chat";
+
+                // Ẩn cả khung chat và ô nhập
+                if (chatPanel != null) chatPanel.Visible = false;
+                if (boxChat != null)
+                {
+                    boxChat.Visible = false;
+                    boxChat.Clear(); // (Tùy chọn) Xóa chữ đang gõ dở khi tắt chat
+                }
+            }
+        }
+
+
+        //----------------------------- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN -------------------------------------------------------
+        private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e) { }
+        private void label4_Click(object sender, EventArgs e) { }
+        private void panel8_Paint(object sender, PaintEventArgs e) { }
+        private void tablePlayerConditionCarrier_Paint(object sender, PaintEventArgs e) { }
+        private void tablePlayerConditionSubmarine_Paint(object sender, PaintEventArgs e) { }
+        private void tablePlayerConditionBattleship_Paint(object sender, PaintEventArgs e) { }
+        private void tablePlayerConditionCruiser_Paint(object sender, PaintEventArgs e) { }
+        private void tablePlayerConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
+        private void TxtTimer_TextChanged(object sender, EventArgs e) { }
+        private void panel1_Paint(object sender, PaintEventArgs e) { }
+        private void TableShots_Paint(object sender, PaintEventArgs e) { }
+        private void lblShots_Click(object sender, EventArgs e) { }
+        private void tableEnemyConditionCarrier_Paint(object sender, PaintEventArgs e) { }
+        private void tableEnemyConditionSubmarine_Paint(object sender, PaintEventArgs e) { }
+        private void tableEnemyConditionBattleship_Paint(object sender, PaintEventArgs e) { }
+        private void tableEnemyConditionCrusier_Paint(object sender, PaintEventArgs e) { }
+        private void tableEnemyConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
+        private void pnlPlayerBoard_Paint(object sender, PaintEventArgs e) { }
+
+
+        private void tableLayoutPanel3_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void label22_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        // THAY THẾ BẰNG 3 HÀM NÀY:
+
+
         private void label21_Click(object sender, EventArgs e)
         {
 
@@ -307,5 +475,18 @@ namespace Battleship.Client
         {
 
         }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void boxChat_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        
+        
     }
 }
