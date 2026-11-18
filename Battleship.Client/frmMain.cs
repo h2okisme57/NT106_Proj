@@ -54,6 +54,7 @@ namespace Battleship.Client
         private void frmMain_Load(object sender, EventArgs e)
         {
             SwitchView(new Lobby());
+
         }
 
         public void TestBoardGame()

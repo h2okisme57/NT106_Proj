@@ -29,7 +29,8 @@ public enum PacketType
     OpponentDisconnected,
     Error,
     // ----- Bổ sung cho các tuần tới (append cuối) -----
-    KickPlayerRequest,          // Đức - 3.4
+    KickPlayerRequest,
+    KickedFromRoom,             // Đức - 3.4
     MatchmakingJoinRequest,     // Hoàng - 3.6
     MatchmakingCancelRequest,   // Hoàng - 3.6
     MatchFound,                 // Hoàng - 3.6
