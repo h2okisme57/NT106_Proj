@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Battleship.Shared; // Đã giữ nguyên dòng này và không dùng .Dtos thừa ở dòng 5
@@ -25,19 +25,18 @@ namespace Battleship.Server.Handlers
                 case PacketType.GetRoomListRequest:
                     await HandleGetRoomListAsync(session);
                     break;
-
                 case PacketType.CreateRoomRequest:
                     await HandleCreateRoomAsync(session, packet);
                     break;
-
                 case PacketType.JoinRoomRequest:
                     await HandleJoinRoomAsync(session, packet);
                     break;
-
                 case PacketType.LeaveRoom:
                     await HandleLeaveRoomAsync(session, packet);
                     break;
-
+                case PacketType.KickPlayerRequest:
+                    await HandleKickPlayerAsync(session, packet);
+                    break;
                 default:
                     Console.WriteLine($"[RoomHandler] Không hỗ trợ gói tin: {packet.Type}");
                     break;
@@ -68,7 +67,6 @@ namespace Battleship.Server.Handlers
                 : Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
 
             var room = _roomManager.CreateRoom(roomId, session);
-
             var updateDto = new RoomUpdateDto
             {
                 Room = room != null ? ToRoomInfoDto(room) : null
@@ -83,14 +81,16 @@ namespace Battleship.Server.Handlers
             var dto = packet.DeserializePayload<JoinRoomDto>();
             if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
             {
-                await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse,
-                    new JoinRoomResponseDto { Success = false, Message = "Thiếu mã phòng." }));
+                await session.SendAsync(Packet.Create(PacketType.JoinRoomResponse, new JoinRoomResponseDto
+                {
+                    Success = false,
+                    Message = "Thiếu mã phòng."
+                }));
                 return;
             }
 
             bool joined = _roomManager.JoinRoom(dto.RoomId, session);
             var room = joined ? _roomManager.GetRoom(dto.RoomId) : null;
-
             var updateDto = new RoomUpdateDto
             {
                 Room = room != null ? ToRoomInfoDto(room) : null
@@ -122,7 +122,6 @@ namespace Battleship.Server.Handlers
 
             var room = _roomManager.GetRoom(dto.RoomId);
             ClientSession? otherPlayer = null;
-
             if (room != null)
             {
                 otherPlayer = (room.Host.SessionId == session.SessionId) ? room.Player2 : room.Host;
@@ -138,6 +137,30 @@ namespace Battleship.Server.Handlers
                 };
                 await otherPlayer.SendAsync(Packet.Create(PacketType.RoomUpdate, updateDto));
             }
+        }
+
+        // 5. Kick người chơi khỏi phòng (chỉ dành cho Host)
+        private async Task HandleKickPlayerAsync(ClientSession session, Packet packet)
+        {
+            var dto = packet.DeserializePayload<KickPlayerDto>();
+            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId)) return;
+
+            var room = _roomManager.GetRoom(dto.RoomId);
+            if (room == null || room.Player2 == null) return;
+
+            // Lưu lại tham chiếu Player2 trước khi bị xóa khỏi phòng
+            var kickedPlayer = room.Player2;
+
+            // RoomManager.KickPlayer đã xác thực chỉ Host mới được quyền Kick
+            bool kicked = _roomManager.KickPlayer(dto.RoomId, session, kickedPlayer);
+            if (!kicked) return;
+
+            // 1. Báo cho người bị kick để thoát về Lobby
+            await kickedPlayer.SendAsync(Packet.Create(PacketType.KickedFromRoom, new RoomUpdateDto { Room = null! }));
+
+            // 2. Cập nhật lại phòng chờ (chỉ còn 1 người) cho Host
+            var hostUpdateDto = new RoomUpdateDto { Room = ToRoomInfoDto(room) };
+            await room.Host.SendAsync(Packet.Create(PacketType.RoomUpdate, hostUpdateDto));
         }
 
         // Hàm ánh xạ từ GameRoom sang RoomInfoDto đã được sửa theo đúng thuộc tính của Shared DTO
