@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Text.Json;
 using System.Windows.Forms;
+using Battleship.Client;
+
 
 namespace Battleship.Client
 {
@@ -31,6 +33,22 @@ namespace Battleship.Client
             // 3. Sau đó mới gọi hàm set tên (nếu gọi ngược lại tên sẽ bị trống)
             SetupPlayerNames();
             SetupPlayerBoard();
+
+            //Lang nghe server
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
+            }
+        }
+
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
+            }
+            base.OnHandleDestroyed(e);
         }
 
         // Sự kiện này sẽ tự động chạy sau khi các Control đã có kích thước thực tế
@@ -69,6 +87,49 @@ namespace Battleship.Client
             tableLayoutPanel3.CellPaint += tableLayoutPanel3_CellPaint;
             tableLayoutPanel5.CellPaint += tableLayoutPanel5_CellPaint;
             tableLayoutPanel6.CellPaint += tableLayoutPanel6_CellPaint;
+        }
+
+
+        private void AddChatMessage(string sender, string content)
+        {
+            if (chatPanel.IsDisposed || !chatPanel.IsHandleCreated) return;
+
+            // Dùng Invoke để đảm bảo cập nhật UI trên Main Thread
+            chatPanel.Invoke(new Action(() =>
+            {
+                Label msgLabel = new Label();
+                msgLabel.Text = $"[{sender}]: {content}";
+                msgLabel.BackColor = Color.Transparent;
+                msgLabel.ForeColor = Color.White;
+                msgLabel.AutoSize = true;
+                msgLabel.MaximumSize = new Size(370, 0);
+
+                chatPanel.Controls.Add(msgLabel);
+
+                // Tự động hiển thị khung chat khi có tin nhắn mới tới
+                chatPanel.Visible = true;
+
+                chatPanel.ScrollControlIntoView(msgLabel);
+            }));
+        }
+
+        private async void NetworkManager_OnPacketReceived(Packet packet)
+        {
+            if (packet.Type == PacketType.ChatMessage)
+            {
+                try
+                {
+                    var chatMsg = packet.DeserializePayload<ChatMessageDto>();
+                    if (chatMsg != null)
+                    {
+                        AddChatMessage(chatMsg.Sender, chatMsg.Content);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Lỗi giải mã tin nhắn: {ex.Message}");
+                }
+            }
         }
 
         private void PlayerBoard_OnCellClicked(int col, int row)
@@ -270,20 +331,7 @@ namespace Battleship.Client
         private void tableEnemyConditionCrusier_Paint(object sender, PaintEventArgs e) { }
         private void tableEnemyConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
         private void pnlPlayerBoard_Paint(object sender, PaintEventArgs e) { }
-        private void pnlPlayerName_Paint(object sender, PaintEventArgs e)
-        {
-            pnlOutlinePaint(pnlPlayerName, e);
-        }
 
-        private void pnlEnemyName_Paint(object sender, PaintEventArgs e)
-        {
-            pnlOutlinePaint(pnlEnemyName, e);
-        }
-
-        private void pnlEnemyName_Paint_1(object sender, PaintEventArgs e)
-        {
-            pnlOutlinePaint(pnlEnemyName, e);
-        }
 
         private void tableLayoutPanel3_Paint(object sender, PaintEventArgs e)
         {
@@ -296,24 +344,7 @@ namespace Battleship.Client
         }
 
         // THAY THẾ BẰNG 3 HÀM NÀY:
-        private void tableLayoutPanel4_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
-        {
-            pnlOutlinePaintUP(tableLayoutPanel4, e);
-        }
 
-        private void tableLayoutPanel5_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
-        {
-            pnlOutlinePaintleft(tableLayoutPanel5, e);
-        }
-
-        private void tableLayoutPanel6_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
-        {
-            pnlOutlinePaintUP(tableLayoutPanel6, e);
-        }
-        private void tableLayoutPanel3_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
-        {
-            pnlOutlinePaintleft(tableLayoutPanel3, e);
-        }
 
         private void label21_Click(object sender, EventArgs e)
         {
@@ -331,5 +362,18 @@ namespace Battleship.Client
         {
 
         }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void boxChat_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        
+        
     }
 }
