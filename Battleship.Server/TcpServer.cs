@@ -29,7 +29,7 @@ public class TcpServer
         RegisterHandlers();
     }
 
-    // ===== ĐĂNG KÝ HANDLER: mỗi người THÊM 1 DÒNG cho mảng của mình, không sửa chỗ khác =====
+        // ===== ĐĂNG KÝ HANDLER: mỗi người THÊM 1 DÒNG cho mảng của mình, không sửa chỗ khác =====
     private void RegisterHandlers()
     {
         _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
@@ -50,18 +50,15 @@ public class TcpServer
         var friendHandler = new FriendHandler(_sessions);
         _router.Register(PacketType.GetFriendsRequest, friendHandler);
 
-        // TODO (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
+        // DONE (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
         var roomHandler = new RoomHandler(_roomManager, _router);
         _router.Register(PacketType.GetRoomListRequest, roomHandler);
         _router.Register(PacketType.CreateRoomRequest, roomHandler);
         _router.Register(PacketType.JoinRoomRequest, roomHandler);
-        _router.Register(PacketType.LeaveRoom, roomHandler); //note! :Chưa có KickPlayer
-
-        roomHandler = new RoomHandler(_roomManager, _router);
-        _router.Register(PacketType.CreateRoomRequest, roomHandler);
-        _router.Register(PacketType.JoinRoomRequest, roomHandler);
-        // Có thể thêm: _router.Register(PacketType.LeaveRoomRequest, roomHandler);
+        _router.Register(PacketType.LeaveRoom, roomHandler);
+        _router.Register(PacketType.KickPlayerRequest, roomHandler);
     }
+
 
     public async Task StartAsync()
     {
