@@ -2,6 +2,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace Battleship.Client
@@ -12,7 +13,6 @@ namespace Battleship.Client
         private BoardGame playerBoard;
         public BoardGame EnemyBoard;
         private MatchFoundDto _currentMatch;
-
         public BattleshipDesign()
         {
             InitializeComponent();
@@ -37,6 +37,7 @@ namespace Battleship.Client
         private void BattleshipDesign_Load(object sender, EventArgs e)
         {
             SetDefaultGrayColors();
+            NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
         }
 
         private void SetupPlayerBoard()
@@ -55,6 +56,8 @@ namespace Battleship.Client
 
             pnlPlayerBoard.Controls.Add(playerBoard);
             pnlEnemyBoard.Controls.Add(EnemyBoard);
+
+            EnemyBoard.IsEnemyBoard = true;
 
             //  Ép tắt khung lưới mặc định của WinForms
             tableLayoutPanel3.CellBorderStyle = TableLayoutPanelCellBorderStyle.None;
@@ -227,6 +230,27 @@ namespace Battleship.Client
             pnlOutlinePaint(panel9, e);
         }
 
+
+
+
+
+        private void NetworkManager_OnPacketReceived(Packet packet)
+        {
+            // Kiểm tra nếu Server gửi về gói GameStart
+            if (packet.Type == PacketType.GameStart) // Cập nhật Enum cho khớp mã của bạn
+            {
+                var gameStartData = JsonSerializer.Deserialize<GameStartDto>(packet.Payload);
+
+                // Chuyển sang luồng UI để cập nhật giao diện
+                this.Invoke((MethodInvoker)delegate
+                {
+                    MessageBox.Show($"Trận đấu bắt đầu! Người đi trước: {gameStartData.FirstTurnPlayer}");
+
+                    // TODO: Mở khóa EnemyBoard để cho phép click bắn (gửi FireShotDto)
+                    // Ví dụ: EnemyBoard.IsPlacementPhase = false; 
+                });
+            }
+        }
         // --- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN ---
         private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e) { }
         private void label4_Click(object sender, EventArgs e) { }
