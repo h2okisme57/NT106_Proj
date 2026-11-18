@@ -38,6 +38,7 @@
             contextMenuStrip1 = new ContextMenuStrip(components);
             boxChat = new TextBox();
             btnLeaderBoard = new Button();
+            button1 = new Button();
             SuspendLayout();
             // 
             // btnFindRoom
@@ -129,12 +130,23 @@
             btnLeaderBoard.UseVisualStyleBackColor = true;
             btnLeaderBoard.Click += btnLeaderBoard_Click_1;
             // 
+            // button1
+            // 
+            button1.Location = new Point(0, 0);
+            button1.Name = "button1";
+            button1.Size = new Size(242, 34);
+            button1.TabIndex = 11;
+            button1.Text = "Nut thu man hinh  tran";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
             // Lobby
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = Properties.Resources.sonia_wisniewska_background_4k;
             BackgroundImageLayout = ImageLayout.Stretch;
+            Controls.Add(button1);
             Controls.Add(btnLeaderBoard);
             Controls.Add(boxChat);
             Controls.Add(lblBattleshiptxt);
@@ -163,5 +175,6 @@
         private ContextMenuStrip contextMenuStrip1;
         private TextBox boxChat;
         private Button btnLeaderBoard;
+        private Button button1;
     }
 }
