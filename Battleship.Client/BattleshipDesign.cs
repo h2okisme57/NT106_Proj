@@ -2,6 +2,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Net.NetworkInformation;
 using System.Text.Json;
 using System.Windows.Forms;
 using Battleship.Client;
@@ -15,6 +16,13 @@ namespace Battleship.Client
         private BoardGame playerBoard;
         public BoardGame EnemyBoard;
         private MatchFoundDto _currentMatch;
+
+
+        private TextBox boxChat;
+
+        private bool _Chat = false;
+
+
         public BattleshipDesign()
         {
             InitializeComponent();
@@ -55,7 +63,7 @@ namespace Battleship.Client
         private void BattleshipDesign_Load(object sender, EventArgs e)
         {
             SetDefaultGrayColors();
-            NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
+            CreateTransparentChatBox();
         }
 
         private void SetupPlayerBoard()
@@ -113,8 +121,20 @@ namespace Battleship.Client
             }));
         }
 
-        private async void NetworkManager_OnPacketReceived(Packet packet)
+        private void NetworkManager_OnPacketReceived(Packet packet)
         {
+            if (packet.Type == PacketType.GameStart)
+            {
+                var gameStart = packet.DeserializePayload<GameStartDto>();
+                if (gameStart == null) return;
+                this.Invoke((MethodInvoker)delegate
+                {
+                    MessageBox.Show($"Trận đấu bắt đầu! Người đi trước: {gameStart.FirstTurnUsername}");
+                    // TODO: mở khóa EnemyBoard để cho phép bắn (gửi FireShotDto)
+                });
+                return;
+            }
+
             if (packet.Type == PacketType.ChatMessage)
             {
                 try
@@ -292,27 +312,135 @@ namespace Battleship.Client
         }
 
 
-
-
-
-        private void NetworkManager_OnPacketReceived(Packet packet)
+        public void CreateTransparentChatBox()
         {
-            // Kiểm tra nếu Server gửi về gói GameStart
-            if (packet.Type == PacketType.GameStart) // Cập nhật Enum cho khớp mã của bạn
+            // Cài đặt thuộc tính cho chatPanel (đã kéo thả từ ToolBox)
+            if (chatPanel != null)
             {
-                var gameStartData = JsonSerializer.Deserialize<GameStartDto>(packet.Payload);
+                chatPanel.AutoScroll = true;
+                chatPanel.BackColor = Color.FromArgb(180, 10, 20, 40); // Nền trong suốt, ngả xanh đen
+                chatPanel.FlowDirection = FlowDirection.TopDown;
+                chatPanel.WrapContents = false;
+                chatPanel.Visible = false; // Mặc định ẩn khi mới vào game
+                chatPanel.BringToFront();  // Ép nổi lên trên cùng, đè lên bảng lưới
+            }
 
-                // Chuyển sang luồng UI để cập nhật giao diện
-                this.Invoke((MethodInvoker)delegate
-                {
-                    MessageBox.Show($"Trận đấu bắt đầu! Người đi trước: {gameStartData.FirstTurnPlayer}");
-
-                    // TODO: Mở khóa EnemyBoard để cho phép click bắn (gửi FireShotDto)
-                    // Ví dụ: EnemyBoard.IsPlacementPhase = false; 
-                });
+            // Cài đặt thuộc tính cho boxChat (đã kéo thả từ ToolBox)
+            if (boxChat != null)
+            {
+                boxChat.BorderStyle = BorderStyle.FixedSingle;
+                boxChat.Visible = false; // Mặc định ẩn khi mới vào game
+                boxChat.BringToFront();  // Ép nổi lên trên cùng
             }
         }
-        // --- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN ---
+
+        private async void boxChat_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true; // Ngăn tiếng píp beep của Windows
+                string messageText = boxChat.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(messageText)) return;
+
+                if (!NetworkManager.Instance.IsConnected)
+                {
+                    AddChatMessage("Hệ thống", "Chưa kết nối đến máy chủ!");
+                    return;
+                }
+
+                try
+                {
+                    var chatMsg = new ChatMessageDto
+                    {
+                        Sender = PlayerProfile.Username,
+                        Content = messageText
+                    };
+
+                    var packet = Packet.Create(PacketType.ChatMessage, chatMsg);
+
+                    boxChat.Clear();
+
+                    await NetworkManager.Instance.SendAsync(packet);
+                }
+                catch (Exception ex)
+                {
+                    AddChatMessage("Hệ thống", $"Lỗi gửi tin nhắn: {ex.Message}");
+                }
+            }
+        }
+
+
+
+        private void tableLayoutPanel4_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
+        {
+            pnlOutlinePaintUP(tableLayoutPanel4, e);
+        }
+
+        private void tableLayoutPanel5_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
+        {
+            pnlOutlinePaintleft(tableLayoutPanel5, e);
+        }
+
+        private void tableLayoutPanel6_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
+        {
+            pnlOutlinePaintUP(tableLayoutPanel6, e);
+        }
+        private void tableLayoutPanel3_CellPaint(object sender, TableLayoutCellPaintEventArgs e)
+        {
+            pnlOutlinePaintleft(tableLayoutPanel3, e);
+        }
+
+
+
+        private void pnlPlayerName_Paint(object sender, PaintEventArgs e)
+        {
+            pnlOutlinePaint(pnlPlayerName, e);
+        }
+
+        private void pnlEnemyName_Paint(object sender, PaintEventArgs e)
+        {
+            pnlOutlinePaint(pnlEnemyName, e);
+        }
+
+        private void pnlEnemyName_Paint_1(object sender, PaintEventArgs e)
+        {
+            pnlOutlinePaint(pnlEnemyName, e);
+        }
+
+
+        private void btnChat_Click(object sender, EventArgs e)
+        {
+            _Chat = !_Chat;
+
+            if (_Chat)
+            {
+                btnChat.Text = "Cancel";
+
+                // Hiện cả khung chat và ô nhập
+                if (chatPanel != null) chatPanel.Visible = true;
+                if (boxChat != null)
+                {
+                    boxChat.Visible = true;
+                    boxChat.Focus(); // Nháy con trỏ chuột luôn vào ô nhập
+                }
+            }
+            else
+            {
+                btnChat.Text = "Chat";
+
+                // Ẩn cả khung chat và ô nhập
+                if (chatPanel != null) chatPanel.Visible = false;
+                if (boxChat != null)
+                {
+                    boxChat.Visible = false;
+                    boxChat.Clear(); // (Tùy chọn) Xóa chữ đang gõ dở khi tắt chat
+                }
+            }
+        }
+
+
+        //----------------------------- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN -------------------------------------------------------
         private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e) { }
         private void label4_Click(object sender, EventArgs e) { }
         private void panel8_Paint(object sender, PaintEventArgs e) { }

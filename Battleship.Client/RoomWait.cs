@@ -95,7 +95,7 @@ namespace Battleship.Client
                     var gameStartInfo = packet.DeserializePayload<GameStartDto>();
                     this.Invoke(new Action(() =>
                     {
-                        MessageBox.Show($"Bắt đầu trận đấu! Người đi trước: {gameStartInfo?.FirstTurnPlayer}");
+                        MessageBox.Show($"Bắt đầu trận đấu! Người đi trước: {gameStartInfo?.FirstTurnUsername}");
                         // Chuyển sang PlacementPhase (Màn hình xếp tàu) tại đây
                     }));
                 }
@@ -154,7 +154,7 @@ namespace Battleship.Client
             // Gửi PlayerReadyDto chuẩn theo Shared (chứa thuộc tính Ready)
             if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
             {
-                var readyDto = new PlayerReadyDto { Ready = _isReady };
+                var readyDto = new PlayerReadyDto { RoomId = _currentRoomId, IsReady = _isReady };
                 var packet = Packet.Create(PacketType.PlayerReady, readyDto);
                 _ = NetworkManager.Instance.SendAsync(packet);
             }
