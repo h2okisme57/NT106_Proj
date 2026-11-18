@@ -310,7 +310,7 @@ namespace Battleship.Client
 
         public async Task SendMyShipsToServerAsync()
         {
-            var shipDtos = new List<ShipDto>();
+            var shipDtos = new List<ShipPlacementDto>();
 
             foreach (var ship in PlayerShips)
             {
@@ -327,12 +327,12 @@ namespace Battleship.Client
                     isHorizontal = (firstCell.Y == secondCell.Y);
                 }
 
-                shipDtos.Add(new ShipDto
+                shipDtos.Add(new ShipPlacementDto
                 {
-                    Name = ship.Name,
-                    X = firstCell.X,
-                    Y = firstCell.Y,
-                    Length = ship.Size,
+                    ShipName = ship.Name,
+                    StartX = firstCell.X,
+                    StartY = firstCell.Y,
+                    Size = ship.Size,
                     IsHorizontal = isHorizontal
                 });
             }
