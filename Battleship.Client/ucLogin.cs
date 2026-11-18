@@ -25,7 +25,34 @@ namespace Battleship.Client
         public ucLogin()
         {
             InitializeComponent();
+            AddForgotPasswordLink();
             this.Load += ucLogin_Load;
+        }
+
+        // Liên kết "Quên mật khẩu?" thêm bằng code (không sửa Designer), đặt cùng hàng với "Chưa có tài khoản?"
+        private void AddForgotPasswordLink()
+        {
+            var llblForgot = new LinkLabel();
+            llblForgot.AutoSize = true;
+            llblForgot.Text = "Quên mật khẩu?";
+            llblForgot.Font = llblRegister.Font;
+            llblForgot.LinkBehavior = LinkBehavior.NeverUnderline;
+            llblForgot.LinkColor = llblRegister.LinkColor;
+            llblForgot.Location = new Point(85, llblRegister.Location.Y);
+            llblForgot.LinkClicked += llblForgot_LinkClicked;
+            this.Controls.Add(llblForgot);
+        }
+
+        private void llblForgot_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            Form popup = FindForm();
+            if (popup != null)
+            {
+                popup.Controls.Clear();
+                var forgotScreen = new ucForgotPassword();
+                popup.Controls.Add(forgotScreen);
+                popup.ClientSize = forgotScreen.Size;
+            }
         }
 
         private void ucLogin_Load(object sender, EventArgs e)

@@ -131,7 +131,8 @@ namespace Battleship.Server.Handlers
             }
 
             // Kiểm tra định dạng tên và mật khẩu
-            string? error = AuthValidator.CheckUsername(name) ?? AuthValidator.CheckPassword(req.Password, name);
+            string? error = AuthValidator.CheckUsername(name) ?? AuthValidator.CheckPassword(req.Password, name)
+                            ?? AuthValidator.CheckEmail(req.Email);
             if (error != null)
             {
                 await SendRegisterAsync(session, false, error);
@@ -152,7 +153,12 @@ namespace Battleship.Server.Handlers
                     return;
                 }
 
-                var newUser = new User { Username = name, Password = PasswordHelper.HashPassword(req.Password) };
+                var newUser = new User
+                {
+                    Username = name,
+                    Password = PasswordHelper.HashPassword(req.Password),
+                    Email = req.Email.Trim().ToLowerInvariant()
+                };
                 db.Users.Add(newUser);
 
                 try

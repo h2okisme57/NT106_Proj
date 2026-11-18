@@ -33,6 +33,8 @@ public class PacketRouter
         PacketType.Handshake,
         PacketType.LoginRequest,
         PacketType.RegisterRequest,
+        PacketType.ForgotPasswordRequest,   // quên mật khẩu thì đương nhiên chưa đăng nhập được
+        PacketType.ResetPasswordRequest,
         PacketType.Ping,
         PacketType.Pong
     };

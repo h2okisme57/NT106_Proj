@@ -24,6 +24,24 @@ public static class AuthValidator
         return null;
     }
 
+    // Email đơn giản: có đúng 1 dấu @, có tên miền có dấu chấm, không có khoảng trắng
+    private static readonly Regex EmailRegex = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+    public const int MaxEmailLength = 100;
+
+    public static string? CheckEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return "Vui lòng nhập email (dùng để lấy lại mật khẩu khi quên).";
+
+        if (email.Length > MaxEmailLength || !EmailRegex.IsMatch(email.Trim()))
+            return "Email không hợp lệ.";
+
+        return null;
+    }
+
+    // Email đơn giản: có đúng 1 dấu @, có tên miền có dấu chấm, không có khoảng trắng
+    
+
     public static string? CheckPassword(string? password, string username)
     {
         if (string.IsNullOrEmpty(password))
