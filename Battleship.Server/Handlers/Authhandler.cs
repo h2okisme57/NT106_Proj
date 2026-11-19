@@ -12,6 +12,15 @@ namespace Battleship.Server.Handlers
 {
     public class AuthHandler : IPacketHandler
     {
+        private readonly PacketRouter? _router;
+        private readonly Action<ClientSession>? _onLogout;   // dọn thêm khi đăng xuất (hủy hàng đợi ghép trận)
+
+        public AuthHandler(PacketRouter? router = null, Action<ClientSession>? onLogout = null)
+        {
+            _router = router;
+            _onLogout = onLogout;
+        }
+
         // Đăng nhập sai 5 lần trong 5 phút thì khóa 60 giây (tính riêng theo IP và theo tên tài khoản)
         private static readonly LoginRateLimiter _loginLimiter =
             new LoginRateLimiter(5, TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(60));
@@ -34,6 +43,36 @@ namespace Battleship.Server.Handlers
             {
                 await HandleRegisterAsync(session, packet);
             }
+            else if (packet.Type == PacketType.LogoutRequest)
+            {
+                await HandleLogoutAsync(session);
+            }
+        }
+
+        private async Task HandleLogoutAsync(ClientSession session)
+        {
+            if (!session.IsLoggedIn) return;   // chưa đăng nhập thì không có gì để đăng xuất
+
+            string oldUser = session.Username ?? "";
+            OnlineUsers.Remove(session);
+            _onLogout?.Invoke(session);
+
+            session.IsLoggedIn = false;
+            session.UserId = null;
+            session.Username = null;
+
+            if (_router != null && !string.IsNullOrEmpty(oldUser))
+            {
+                var offlinePacket = new Packet
+                {
+                    Type = PacketType.OnlineListUpdate,
+                    Payload = JsonSerializer.Serialize(new { Username = oldUser, Status = "Offline" })
+                };
+                _ = _router.BroadcastAsync(offlinePacket);
+            }
+
+            await session.SendAsync(Packet.Create(PacketType.LogoutResponse, new LogoutResponseDto { Success = true, Message = "Đăng xuất thành công!" }));
+            Console.WriteLine($"[AuthHandler] Người dùng '{oldUser}' đã đăng xuất.");
         }
 
         private async Task HandleLoginAsync(ClientSession session, Packet packet)

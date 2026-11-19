@@ -171,6 +171,31 @@ namespace Battleship.Client
         }
 
         /// <summary>
+        /// Gửi yêu cầu Đăng xuất chủ động (Logout) và xóa trạng thái người dùng
+        /// </summary>
+        public async Task<bool> LogoutAsync()
+        {
+            if (!IsConnected) return false;
+            try
+            {
+                var packet = Packet.Create(PacketType.LogoutRequest, new LogoutRequestDto
+                {
+                    Username = PlayerProfile.Username ?? string.Empty
+                });
+                await SendAsync(packet);
+
+                // Xóa trạng thái tại Client
+                PlayerProfile.Clear();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NetworkManager] Lỗi đăng xuất: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Ngắt kết nối và dọn dẹp tài nguyên
         /// </summary>
         public void Disconnect()

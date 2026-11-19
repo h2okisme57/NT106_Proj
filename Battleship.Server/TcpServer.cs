@@ -34,10 +34,11 @@ public class TcpServer
     {
         _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
 
-        // DONE (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest
-        var authHandler = new AuthHandler();
+        // DONE (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest / LogoutRequest
+        var authHandler = new AuthHandler(_router, s => _matchmaking.Cancel(s));
         _router.Register(PacketType.LoginRequest, authHandler);
         _router.Register(PacketType.RegisterRequest, authHandler);
+        _router.Register(PacketType.LogoutRequest, authHandler);
 
         // Hoàng - quên mật khẩu qua email (xin mã, đặt mật khẩu mới)
         var passwordResetHandler = new PasswordResetHandler();
@@ -55,7 +56,7 @@ public class TcpServer
         var friendHandler = new FriendHandler(_sessions);
         _router.Register(PacketType.GetFriendsRequest, friendHandler);
 
-        // DONE (Đức - 3.4): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
+        // DONE (Đức - 3.4 & 4.2): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
         var roomHandler = new RoomHandler(_roomManager, _router);
         _router.Register(PacketType.GetRoomListRequest, roomHandler);
         _router.Register(PacketType.CreateRoomRequest, roomHandler);

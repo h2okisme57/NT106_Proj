@@ -44,7 +44,10 @@ public enum PacketType
     ForgotPasswordRequest,      // xin mã xác nhận gửi về email của tài khoản
     ForgotPasswordResponse,
     ResetPasswordRequest,       // gửi mã + mật khẩu mới
-    ResetPasswordResponse
+    ResetPasswordResponse,
+    // ----- Đăng xuất (Logout) -----
+    LogoutRequest,
+    LogoutResponse
 }
 
 public class Packet
