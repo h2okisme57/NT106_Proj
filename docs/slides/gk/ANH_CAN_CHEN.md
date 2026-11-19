@@ -13,7 +13,13 @@
 | Thiết kế giao diện | `gk-02-register.png` | Màn hình Đăng ký | Dũng | Đã có |
 | Thiết kế giao diện | `gk-03-roomwait.png` | Phòng chờ có 2 người chơi và nút Ready | Dũng | Đã có |
 | Thiết kế giao diện | `gk-04-board.png` | Lưới 10x10 (chụp từ Client) | Dũng | Đã có |
-| Kịch bản demo | `10-server-log.png` | Cửa sổ Server có dòng "Đang dùng: Supabase" và "Đang lắng nghe tại cổng 8000" | Hoàng | Chưa có |
-| Quản lý phòng đấu | `11-room-list.png` | Màn hình Join Room có ít nhất một phòng (một Client tạo phòng, Client kia mở Join Room rồi chụp) | Dũng hoặc Hoàng | Chưa có |
+| Kịch bản demo | `10-server-log.png` | Cửa sổ Server có dòng "Đang dùng: Supabase", "Đang lắng nghe tại cổng 8000" và "worker ghép cặp" | Hoàng | Cần chụp |
+| Quản lý phòng đấu | `11-room-list.png` | Màn hình Join Room có ít nhất một phòng (một Client tạo phòng, Client kia mở Join Room rồi chụp) | Dũng hoặc Hoàng | Cần chụp |
+| Giao diện Chat trận | `13-chat-in-match.png` | Màn hình trận đấu mở khung chat (bấm nút Chat để hiện box nhập và tin nhắn) | Dũng | Cần chụp |
+| Quên mật khẩu OTP | `14-forgot-password.png` | Giao diện Quên mật khẩu (ucForgotPassword) nhập username và ô nhập mã OTP | Dũng | Cần chụp |
+| Bàn cờ đặt tàu 10x10 | `15-ship-placement.png` | Bàn cờ đang xếp 5 loại tàu (Carrier, Battleship, Cruiser, Submarine, Destroyer) | Dũng | Cần chụp |
 
-Còn thiếu: `10-server-log.png` (Hoàng chụp) và `11-room-list.png` (chụp màn hình Join Room có ít nhất một phòng). Chụp bằng `Win + Shift + S`.
+### Hướng dẫn chụp ảnh minh họa:
+1. **Dùng phím tắt**: `Windows + Shift + S` để quét vùng cửa sổ rõ nét.
+2. **Lưu định dạng**: PNG, đúng tên file ở cột `File` ở trên và chép vào thư mục `docs/slides/images/`.
+3. **Tuyệt đối không để lộ**: Mật khẩu DB Supabase, chuỗi kết nối (`SUPABASE_DB_CONNECTION`), secret key trong code.
