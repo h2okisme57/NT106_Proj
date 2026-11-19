@@ -12,12 +12,15 @@ namespace Battleship.Server;
 public class MatchmakingQueue
 {
     // hàng đợi chứa những người đang chờ (vào trước ra trước)
-    private readonly ConcurrentQueue<ClientSession> _queue = new ConcurrentQueue<ClientSession>();
+    // mỗi lần bấm "Tìm trận" có 1 "vé" (ticket) riêng đi kèm
+    private readonly ConcurrentQueue<(ClientSession Session, string Ticket)> _queue =
+        new ConcurrentQueue<(ClientSession Session, string Ticket)>();
 
-    // danh sách id của những người VẪN đang chờ.
-    // ConcurrentQueue không xóa người ở giữa được nên khi người ta hủy tìm trận
-    // mình chỉ xóa khỏi danh sách này, lúc lấy ra mà không thấy trong đây thì bỏ qua.
-    private readonly ConcurrentDictionary<string, bool> _waiting = new ConcurrentDictionary<string, bool>();
+    // id người chơi -> vé hiện hành của người đó (chỉ những người VẪN đang chờ).
+    // ConcurrentQueue không xóa người ở giữa được nên khi hủy tìm trận mình chỉ xóa khỏi bảng này.
+    // Dùng vé để phân biệt lần bấm cũ và mới: hủy rồi bấm lại thì trong hàng đợi có 2 mục của
+    // cùng 1 người, nhưng chỉ mục có vé khớp bảng này mới hợp lệ (tránh ghép người đó với chính mình).
+    private readonly ConcurrentDictionary<string, string> _waiting = new ConcurrentDictionary<string, string>();
 
     private readonly RoomManager _roomManager;
 
@@ -30,12 +33,13 @@ public class MatchmakingQueue
     public void Join(ClientSession session)
     {
         // nếu đã đang chờ rồi thì thôi, tránh bị vào 2 lần
-        if (!_waiting.TryAdd(session.SessionId, true))
+        string ticket = Guid.NewGuid().ToString("N");
+        if (!_waiting.TryAdd(session.SessionId, ticket))
         {
             return;
         }
 
-        _queue.Enqueue(session);
+        _queue.Enqueue((session, ticket));
         Console.WriteLine("[Matchmaking] " + session.SessionId + " vào hàng đợi. Đang chờ: " + _waiting.Count);
     }
 
@@ -64,24 +68,32 @@ public class MatchmakingQueue
                     continue;
                 }
 
-                ClientSession? p1;
-                ClientSession? p2;
-                _queue.TryDequeue(out p1);
-                _queue.TryDequeue(out p2);
+                (ClientSession Session, string Ticket) e1;
+                (ClientSession Session, string Ticket) e2;
+                if (!_queue.TryDequeue(out e1) || !_queue.TryDequeue(out e2))
+                {
+                    continue;
+                }
 
-                // kiểm tra cả 2 còn sống không (có thể 1 người đã hủy hoặc tắt app lúc đang chờ)
-                bool ok1 = IsStillOk(p1);
-                bool ok2 = IsStillOk(p2);
+                // kiểm tra cả 2 còn hợp lệ không (có thể 1 người đã hủy, bấm lại, hoặc tắt app lúc đang chờ)
+                bool ok1 = IsStillOk(e1);
+                bool ok2 = IsStillOk(e2);
+
+                // không bao giờ ghép 1 người với chính mình
+                if (ok1 && ok2 && e1.Session.SessionId == e2.Session.SessionId)
+                {
+                    ok2 = false;
+                }
 
                 if (ok1 && ok2)
                 {
-                    await CreateMatch(p1!, p2!);
+                    await CreateMatch(e1, e2);
                 }
                 else
                 {
-                    // người nào còn ok thì cho xếp hàng lại, người lỗi thì bỏ luôn
-                    if (ok1) _queue.Enqueue(p1!);
-                    if (ok2) _queue.Enqueue(p2!);
+                    // người nào còn ok thì cho xếp hàng lại (giữ nguyên vé), người lỗi hoặc vé cũ thì bỏ luôn
+                    if (ok1) _queue.Enqueue(e1);
+                    if (ok2) _queue.Enqueue(e2);
                 }
             }
             catch (OperationCanceledException)
@@ -98,12 +110,13 @@ public class MatchmakingQueue
     }
 
     // Kiểm tra 1 người còn hợp lệ để ghép không
-    private bool IsStillOk(ClientSession? s)
+    private bool IsStillOk((ClientSession Session, string Ticket) entry)
     {
+        ClientSession s = entry.Session;
         if (s == null) return false;
 
-        // đã hủy / đã bị xóa khỏi danh sách chờ
-        if (!_waiting.ContainsKey(s.SessionId)) return false;
+        // đã hủy, hoặc đây là lần bấm cũ (vé không còn khớp vé hiện hành)
+        if (!_waiting.TryGetValue(s.SessionId, out string? current) || current != entry.Ticket) return false;
 
         // socket đã đóng rồi thì không ghép (tránh lỗi null khi tạo trận)
         if (!s.Client.Connected)
@@ -116,8 +129,10 @@ public class MatchmakingQueue
     }
 
     // Tạo phòng cho 2 người rồi báo cho cả 2
-    private async Task CreateMatch(ClientSession p1, ClientSession p2)
+    private async Task CreateMatch((ClientSession Session, string Ticket) e1, (ClientSession Session, string Ticket) e2)
     {
+        ClientSession p1 = e1.Session;
+        ClientSession p2 = e2.Session;
         // đặt tên phòng ngẫu nhiên, lấy 6 ký tự đầu của Guid cho ngắn
         string roomId = "match-" + Guid.NewGuid().ToString("N").Substring(0, 6);
 
@@ -126,8 +141,8 @@ public class MatchmakingQueue
         {
             // tạo phòng lỗi thì cho 2 người xếp hàng lại để thử lần sau
             Console.WriteLine("[Matchmaking] Tạo phòng " + roomId + " thất bại, xếp hàng lại.");
-            _queue.Enqueue(p1);
-            _queue.Enqueue(p2);
+            _queue.Enqueue(e1);
+            _queue.Enqueue(e2);
             return;
         }
 

@@ -1,9 +1,13 @@
-﻿using System;
+﻿using Battleship.Shared;
+using SQLitePCL;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows.Forms;
+using System.Text.Json;
 
 namespace Battleship.Client
 {
@@ -28,6 +32,7 @@ namespace Battleship.Client
         private bool isResizing = false;
         private Point currentHover = new Point(-1, -1);
 
+        public bool IsEnemyBoard { get; set; } = false;
         public bool IsPlacementPhase { get; set; } = true;
         public bool IsHorizontal { get; set; } = true;
         public ShipInfo SelectedShip { get; set; }
@@ -96,6 +101,10 @@ namespace Battleship.Client
                         Margin = new Padding(0),
                         TabStop = false
                     };
+                    if (IsEnemyBoard)
+                    {
+                        btn.Enabled = false;
+                    }
 
                     btn.FlatAppearance.BorderSize = 0;
                     btn.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -131,14 +140,17 @@ namespace Battleship.Client
             return true;
         }
 
-        private void Cell_MouseDown(object sender, MouseEventArgs e)
-        {
+        private async void Cell_MouseDown(object sender, MouseEventArgs e)
+        {   
+            if (IsEnemyBoard) return;
+
             // Nếu bấm Chuột phải -> Xoay tàu
             if (e.Button == MouseButtons.Right)
             {
                 if (IsPlacementPhase) ToggleRotation();
                 return;
             }
+            
 
             // Nếu bấm Chuột trái -> Tiến hành đặt tàu
             if (e.Button == MouseButtons.Left)
@@ -147,7 +159,7 @@ namespace Battleship.Client
                 Point coords = (Point)btn.Tag;
                 int col = coords.X;
                 int row = coords.Y;
-
+                if (!CanPlaceShip(col, row, SelectedShip.Size, IsHorizontal)) return;
                 if (IsPlacementPhase && SelectedShip != null && !SelectedShip.IsPlaced)
                 {
                     if (CanPlaceShip(col, row, SelectedShip.Size, IsHorizontal))
@@ -171,6 +183,7 @@ namespace Battleship.Client
                             IsPlacementPhase = false;
                             MessageBox.Show("Đã bố trí xong hạm đội 5 tàu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
+                        SendMyShipsToServerAsync();
                     }
                 }
 
@@ -181,6 +194,7 @@ namespace Battleship.Client
 
         private void Cell_MouseEnter(object sender, EventArgs e)
         {
+            if (IsEnemyBoard) return;
             Button btn = sender as Button;
             currentHover = (Point)btn.Tag;
             tableGame.Invalidate();
@@ -188,6 +202,7 @@ namespace Battleship.Client
 
         private void Cell_MouseLeave(object sender, EventArgs e)
         {
+            if (IsEnemyBoard) return;
             currentHover = new Point(-1, -1);
             tableGame.Invalidate();
         }
@@ -291,6 +306,49 @@ namespace Battleship.Client
         {
             if (col >= 0 && col < 10 && row >= 0 && row < 10)
                 cells[col, row].BackgroundImage = null;
+        }
+
+        public async Task SendMyShipsToServerAsync()
+        {
+            var shipDtos = new List<ShipPlacementDto>();
+
+            foreach (var ship in PlayerShips)
+            {
+                if (!ship.IsPlaced || ship.OccupiedCells.Count == 0) continue;
+
+                // Xác định tọa độ đầu và hướng của tàu
+                var firstCell = ship.OccupiedCells[0];
+                bool isHorizontal = true;
+
+                if (ship.OccupiedCells.Count > 1)
+                {
+                    var secondCell = ship.OccupiedCells[1];
+                    // Nếu ô 1 và ô 2 cùng giá trị Y (hàng), tức là đang đặt nằm ngang
+                    isHorizontal = (firstCell.Y == secondCell.Y);
+                }
+
+                shipDtos.Add(new ShipPlacementDto
+                {
+                    ShipName = ship.Name,
+                    StartX = firstCell.X,
+                    StartY = firstCell.Y,
+                    Size = ship.Size,
+                    IsHorizontal = isHorizontal
+                });
+            }
+
+            // Đóng gói vào DTO chung
+            var placeShipsDto = new PlaceShipsDto { Ships = shipDtos };
+
+            // Tạo Packet 
+            var packet = new Packet
+            {
+                Type = PacketType.PlaceShipsRequest,
+                Payload = JsonSerializer.Serialize(placeShipsDto)
+            };
+
+            // Gửi qua NetworkManager
+            await NetworkManager.Instance.SendAsync(packet);
         }
     }
 }
