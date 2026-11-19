@@ -188,23 +188,65 @@
 
 \begin{frame}[label=kientruc]{Kiến Trúc Tổng Thể}
   \centering
+  \resizebox{\textwidth}{!}{%
   \begin{tikzpicture}[
     box/.style={draw=inkblue, fill=white, rounded corners=3pt, thick, align=center,
-                minimum height=1.05cm, font=\scriptsize},
+                minimum height=0.95cm, font=\scriptsize, inner sep=3pt},
+    hl/.style={box, fill=paleblue},
+    ext/.style={box, fill=gold!35},
+    zone/.style={draw=brandblue, dashed, rounded corners=6pt, thick},
+    zl/.style={font=\scriptsize\bfseries, color=inkblue, anchor=south west},
     arr/.style={{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick, color=brandblue},
-    one/.style={-{Stealth[length=2mm]}, thick, color=brandblue, dashed}]
-    \node[box, fill=paleblue, minimum width=2.6cm] (c) at (0,0) {\textbf{Client}\\WinForms\\\texttt{NetworkManager}};
-    \node[box, fill=paleblue, minimum width=3.4cm] (s) at (5.2,0) {\textbf{Server}\\\texttt{TcpServer} $\rightarrow$ \texttt{PacketRouter}\\$\rightarrow$ Handler};
-    \node[box, minimum width=2.6cm] (l) at (10.4,0.9) {\textbf{SQLite}\\(chạy offline)};
-    \node[box, minimum width=2.6cm] (d) at (10.4,-0.9) {\textbf{PostgreSQL}\\Supabase (cloud)};
-    \node[box, minimum width=2.6cm] (r) at (5.2,-2.5) {\textbf{REST (HTTPS)}\\view \texttt{leaderboard}};
-    \draw[arr] (c) -- node[above,font=\tiny, align=center]{TCP\\+ AES-128} (s);
-    \draw[arr] (s) -- node[above,font=\tiny]{EF Core} (d);
-    \draw[arr] (s) -- (l);
-    \draw[one] (c) |- (r); \draw[one] (r) -| (d);
-  \end{tikzpicture}
+    one/.style={-{Stealth[length=2mm]}, thick, color=brandblue},
+    dsh/.style={-{Stealth[length=2mm]}, thick, color=brandblue, dashed},
+    lab/.style={font=\tiny, color=brandblue, align=center, fill=bgblue, inner sep=1pt}]
+
+    % ---- Vùng Client ----
+    \draw[zone] (-0.2,0.4) rectangle (3.8,8.6);
+    \node[zl] at (-0.1,8.65) {CLIENT (WinForms)};
+    \node[hl, minimum width=3.2cm] (ui) at (1.8,7.0) {\textbf{Giao diện}\\Login, Lobby, Phòng chờ,\\Bàn cờ, Chat};
+    \node[hl, minimum width=3.2cm] (nm) at (1.8,4.2) {\textbf{NetworkManager}\\1 luồng đọc, sự kiện\\gói tin về giao diện};
+    \draw[one] (ui) -- (nm);
+
+    % ---- Vùng Server ----
+    \draw[zone] (6.0,0.4) rectangle (16.2,8.6);
+    \node[zl] at (6.1,8.65) {SERVER (.NET 8, TCP bất đồng bộ)};
+    \node[hl, minimum width=2.6cm] (ts) at (7.6,7.2) {\textbf{TcpServer}\\nhận kết nối,\\bắt tay};
+    \node[hl, minimum width=3.0cm] (cs) at (11.0,7.2) {\textbf{ClientSession}\\mã hóa, khung gói,\\hàng gửi riêng};
+    \node[hl, minimum width=3.0cm] (pr) at (14.5,7.2) {\textbf{PacketRouter}\\bảng handler, chặn\\gói chưa đăng nhập};
+    \draw[one] (ts) -- (cs);
+    \draw[one] (cs) -- (pr);
+
+    \node[box, minimum width=9.6cm, minimum height=1.3cm] (hd) at (11.1,5.0)
+      {\textbf{Handlers}\\Auth $\cdot$ PasswordReset $\cdot$ Room $\cdot$ Chat $\cdot$ Friend $\cdot$ Turn Engine (đang làm)};
+    \draw[one] (14.5,6.65) -- (14.5,5.65);
+
+    \node[box, minimum width=2.8cm] (ou) at (7.7,2.9) {\textbf{OnlineUsers}\\1 phiên mỗi tài khoản};
+    \node[box, minimum width=3.4cm] (rm) at (11.1,2.9) {\textbf{RoomManager}\\GameRoom, PlayerBoard};
+    \node[box, minimum width=3.0cm] (mq) at (14.6,2.9) {\textbf{MatchmakingQueue}\\worker ghép cặp};
+    \draw[arr] (7.7,4.35) -- (ou.north);
+    \draw[arr] (11.1,4.35) -- (rm.north);
+    \draw[arr] (14.6,4.35) -- (mq.north);
+
+    \node[box, minimum width=9.6cm] (db) at (11.1,1.1) {\textbf{Tầng dữ liệu (EF Core)}: Users, Matches, MatchDetails};
+    \draw[arr] (rm.south) -- (db.north -| rm.south);
+
+    % ---- Dịch vụ ngoài ----
+    \node[ext, minimum width=3.4cm] (rest) at (18.8,7.2) {\textbf{Supabase REST}\\view \texttt{leaderboard}};
+    \node[ext, minimum width=3.4cm] (smtp) at (18.8,5.0) {\textbf{SMTP}\\gửi mã quên mật khẩu};
+    \node[ext, minimum width=3.4cm] (pg) at (18.8,1.1) {\textbf{SQLite} (offline)\\\textbf{PostgreSQL} (Supabase)};
+    \draw[arr] (db) -- (pg);
+    \draw[one] (hd.east) -- (smtp.west);
+    \draw[dsh] (ui.north) -- (1.8,9.3) -- (18.8,9.3) -- (rest.north);
+    \node[lab] at (10.5,9.3) {HTTPS, chỉ đọc bảng xếp hạng, không qua Server};
+
+    % ---- Đường TCP ----
+    \draw[arr, line width=1.6pt] (nm.east) -- (5.2,4.2) -- (5.2,7.2) -- (ts.west);
+    \node[lab] at (4.8,5.7) {TCP :8000\\khung 4 byte\\AES-128-CBC};
+  \end{tikzpicture}%
+  }
   \par\vspace{0.1cm}
-  \scriptsize Nét liền: đường chính (TCP, cơ sở dữ liệu). Nét đứt: chỉ đọc bảng xếp hạng qua REST.
+  \scriptsize Nét liền: luồng chính. Nét đứt: Client đọc bảng xếp hạng thẳng qua REST.
 \end{frame}
 
 % ---------- Gói tin ----------
@@ -458,6 +500,7 @@
     \end{column}
     \begin{column}{0.45\textwidth}
       \centering
+      \resizebox{\linewidth}{!}{%
       \begin{tikzpicture}[
         life/.style={dashed, color=skyblue, thick},
         msg/.style={-{Stealth[length=2mm]}, thick, color=brandblue},
@@ -474,7 +517,8 @@
         \draw[msg] (3.2,-2.3) -- node[lab, above]{2. Offline} (5.8,-2.3);
         \draw[msg] (3.2,-3.0) -- node[lab, above]{3. \texttt{LogoutResponse}} (0,-3.0);
         \node[font=\tiny, align=center, fill=paleblue, rounded corners=2pt, inner sep=2pt] at (0,-3.7) {Xóa Profile, về Login};
-      \end{tikzpicture}
+      \end{tikzpicture}%
+      }
     \end{column}
   \end{columns}
 \end{frame}
@@ -513,6 +557,21 @@
 \end{frame}
 
 % ---------- Tính năng đặc biệt ----------
+% ---------- Giao diện bổ sung ----------
+\begin{frame}[label=giaodien2]{Giao Diện Bổ Sung: Chat Trong Trận, Quên Mật Khẩu, Xếp Tàu}
+  \begin{columns}[T]
+    \begin{column}{0.32\textwidth}
+      \slideimg[\textwidth]{13-chat-in-match.png}{Chat trong trận: bấm nút Chat để mở khung}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \slideimg[\textwidth]{14-forgot-password.png}{Quên mật khẩu: nhập email, nhận mã xác nhận}
+    \end{column}
+    \begin{column}{0.32\textwidth}
+      \slideimg[\textwidth]{15-ship-placement.png}{Xếp tàu: đặt và xoay trên lưới $10\times10$}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 \begin{frame}[label=dacbiet]{Tính Năng Đặc Biệt: Tối Ưu Hiệu Năng Khi Nhiều Người Chơi}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
@@ -538,29 +597,42 @@
   \end{columns}
   \vspace{0.1cm}
   \begin{alertblock}{Trạng thái}
-    \footnotesize Điểm nghẽn rút ra từ việc đọc code (sẽ đo để xác nhận), đang ở bước thiết kế; làm 17/11 -- 29/11, đo lại ở giai đoạn kiểm thử. Mở rộng nếu còn thời gian: bộ điều phối Round-Robin chia kết nối cho nhiều Server (mỗi Server giữ phòng riêng).
+    \footnotesize Điểm nghẽn rút ra từ việc đọc code (sẽ đo để xác nhận), đã làm một phần; làm 17/11 -- 29/11, đo lại ở giai đoạn kiểm thử. Hàng gửi riêng mỗi client đã có (Đức, 18/11). Làm thêm nếu còn thời gian: bộ điều phối Round-Robin chia kết nối cho nhiều Server (mỗi Server giữ phòng riêng), và kết nối lại giữa trận bằng token (mục 4.9).
   \end{alertblock}
 \end{frame}
 
 % ---------- Độ phức tạp ----------
 \begin{frame}[label=phuctap]{Phân Tích Độ Phức Tạp Các Chức Năng}
-  \scriptsize
-  \begin{tabularx}{\textwidth}{@{}l c c Y@{}}
-    \toprule
-    \textbf{Chức năng} & \textbf{Thời gian} & \textbf{Bộ nhớ} & \textbf{Cấu trúc dữ liệu, cách làm} \\
-    \midrule
-    Ghép trận (\texttt{MatchmakingQueue}) & $O(1)$ & $O(N)$ & \texttt{ConcurrentQueue} lấy 2 người đầu hàng. Hủy tìm trận $O(1)$: chỉ xóa khỏi \texttt{ConcurrentDictionary}, worker bỏ qua vé đã hủy. \\
-    Định tuyến gói (\texttt{PacketRouter}) & $O(1)$ & $O(K)$ & \texttt{Dictionary<PacketType, IPacketHandler>}, $K = 38$ loại gói. \\
-    Mã hóa AES-128-CBC & $O(M)$ & $O(M)$ & Theo kích thước gói $M$ byte, mỗi gói một IV ngẫu nhiên. \\
-    Băm mật khẩu (BCrypt, $C=11$) & $O(2^C)$ & $O(1)$ & Cố ý chậm để chống dò mật khẩu. Thời gian thật sẽ đo ở mục 5.1. \\
-    Chống dò mật khẩu (\texttt{LoginRateLimiter}) & $O(1)$ & $O(U)$ & \texttt{Dictionary} có khóa, tra theo IP và tên tài khoản. \\
-    Kiểm tra đặt tàu (\texttt{PlayerBoard}) & $O(S)$ & $O(S)$ & $S = 5+4+3+3+2 = 17$ ô, \texttt{HashSet} kiểm tra chồng nhau và ra biên, $O(1)$ mỗi ô. \\
-    Xử lý một phát bắn (\texttt{PlayerBoard}) & $O(1)$ & $O(1)$ & \texttt{HashSet} kiểm tra ô đã bắn; duyệt tối đa 5 tàu để biết trúng hoặc chìm. \\
-    Phát gói cho nhiều người (\texttt{BroadcastAsync}) & $O(P)$ & $O(P)$ & $P$ người nhận, mỗi người một lần đưa vào hàng gửi riêng. Là đối tượng tối ưu (mục 4.6). \\
-    \bottomrule
-  \end{tabularx}
-  \vspace{0.1cm}
-  \par\tiny $N$: người đang chờ ghép trận; $M$: kích thước gói; $U$: số IP và tài khoản đang bị theo dõi; $P$: số người nhận. Đây là phân tích lý thuyết từ code; số đo thực tế sẽ có ở phần kiểm thử.
+  \small
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Phức tạp thấp (làm theo mẫu có sẵn)}
+        \begin{itemize}\setlength{\itemsep}{1pt}\scriptsize
+          \item \textbf{Đăng ký, đăng nhập, Profile:} nhận gói, kiểm tra, ghi cơ sở dữ liệu.
+          \item \textbf{Chat sảnh, danh sách Online:} Server nhận một gói rồi gửi lại cho mọi người.
+          \item \textbf{Bảng xếp hạng:} chỉ đọc qua REST.
+        \end{itemize}
+      \end{block}
+      \begin{block}{Phức tạp vừa (nhiều người dùng chung dữ liệu)}
+        \begin{itemize}\setlength{\itemsep}{1pt}\scriptsize
+          \item \textbf{Ghép trận:} hai người bấm cùng lúc phải ra đúng một cặp, người hủy không bị ghép nhầm (lỗi tự ghép với chính mình đã gặp và sửa).
+          \item \textbf{Phòng đấu:} vào, rời, kick đồng thời nên phải khóa từng phòng.
+          \item \textbf{Chống dò mật khẩu, một phiên mỗi tài khoản:} nhiều luồng cùng đọc ghi một bảng theo dõi.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{alertblock}{Phức tạp cao (phần khó của đồ án)}
+        \begin{itemize}\setlength{\itemsep}{1pt}\scriptsize
+          \item \textbf{Giao thức gói tin:} TCP không giữ ranh giới gói, nên phải tự đóng khung, bắt tay, mã hóa từng gói.
+          \item \textbf{Luật trận do Server quyết:} Client không được tin, Server kiểm tra xếp tàu, phán trúng hay trượt, giữ lượt và đồng hồ 30 giây.
+          \item \textbf{Mất kết nối giữa trận:} phát hiện đối thủ mất mạng, kết thúc trận đúng cách.
+          \item \textbf{Chịu tải nhiều người chơi:} phát một gói cho cả trăm người mà một máy chậm không kéo cả hệ thống chậm. Đây là tính năng đặc biệt.
+        \end{itemize}
+      \end{alertblock}
+      \scriptsize Mức độ ở đây là đánh giá của nhóm khi làm, không phải số đo. Số đo thực tế (độ trễ, số người chịu được) sẽ có ở phần kiểm thử.
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ---------- Cải tiến cuối kỳ so với giữa kỳ ----------

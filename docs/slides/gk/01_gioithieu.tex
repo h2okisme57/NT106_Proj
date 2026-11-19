@@ -227,18 +227,19 @@
     Mạng & Mã hóa AES-128-CBC mọi gói tin & \tickDone \\
     Mạng & PacketRouter chuyển gói tới handler của từng chức năng & \tickDone \\
     Tài khoản & Đăng ký, đăng nhập, băm mật khẩu BCrypt & \tickDone \\
-    Tài khoản & Quên mật khẩu: gửi mã xác nhận qua email (SMTP), đặt lại mật khẩu & \tickNone \\
-    Tài khoản & Đăng xuất: dọn phiên, gỡ khỏi Online, hủy hàng đợi, rời phòng & \tickNone \\
+    Tài khoản & Quên mật khẩu: gửi mã qua email (SMTP), đặt lại (đã merge, chưa thử email thật) & \tickHalf \\
+    Tài khoản & Đăng xuất: dọn phiên, gỡ khỏi Online, hủy hàng đợi (viết xong, chờ merge) & \tickHalf \\
     Bảo mật & Khóa 60 giây sau 5 lần sai, giới hạn số lần đăng ký & \tickDone \\
     Bảo mật & Chặn gói khi chưa đăng nhập, một tài khoản một phiên & \tickDone \\
     Sảnh & Danh sách Online/Offline, chat sảnh & \tickDone \\
     Phòng & Tạo phòng, vào phòng, rời phòng & \tickDone \\
-    Phòng & Kick thành viên (có hàm, chưa nối vào Router) & \tickHalf \\
+    Phòng & Kick thành viên (Server xong, Client chưa có nút) & \tickHalf \\
     Ghép trận & Hàng đợi ghép cặp tự động & \tickDone \\
     Dữ liệu & SQLite / PostgreSQL (Supabase), view bảng xếp hạng & \tickDone \\
     Dữ liệu & Ghi lịch sử trận (có bảng, chưa ghi dữ liệu) & \tickHalf \\
-    Trận đấu & Ready, xếp tàu, bắn theo lượt, GameOver, timer 30 giây, xử thắng khi rớt mạng & \tickNone \\
-    Đặc biệt & Tối ưu hiệu năng, chịu tải nhiều người chơi (hàng gửi riêng, mã hóa một lần, đo trước và sau) & \tickNone \\
+    Trận đấu & Ready, xếp tàu, bắn theo lượt, GameOver, timer 30 giây, xử thắng khi rớt mạng (mới có kiểm tra xếp tàu và DTO) & \tickHalf \\
+    Đặc biệt & Tối ưu hiệu năng, chịu tải nhiều người chơi (hàng gửi riêng đã có; còn mã hóa một lần, đo trước và sau) & \tickHalf \\
+    Đặc biệt (mở rộng) & Kết nối lại giữa trận bằng token, giữ ván 15 giây & \tickNone \\
     \bottomrule
   \end{tabularx}
   \par\vspace{0.05cm}
@@ -255,18 +256,19 @@
     Mạng & Mã hóa AES mọi gói gửi và nhận & \tickDone \\
     Tài khoản & Màn hình đăng nhập, khóa có đếm ngược 60 giây & \tickDone \\
     Tài khoản & Màn hình đăng ký & \tickDone \\
-    Tài khoản & Quên mật khẩu: xin mã, đặt lại; thêm ô email khi đăng ký & \tickNone \\
+    Tài khoản & Quên mật khẩu: xin mã, đặt lại; ô email khi đăng ký & \tickHalf \\
     Tài khoản & Nút đăng xuất, quay về màn hình đăng nhập & \tickNone \\
     Tài khoản & Hồ sơ người chơi (Profile) & \tickDone \\
     Sảnh & Lobby và chat sảnh & \tickDone \\
     Phòng & Tạo phòng, danh sách phòng, vào phòng bằng ID & \tickDone \\
     Ghép trận & Nút Find Opponent, vào phòng chờ khi được ghép & \tickDone \\
     Phòng chờ & Hiện tên hai người chơi & \tickDone \\
-    Phòng chờ & Nút Ready đồng bộ với đối thủ (hiện chỉ đổi chữ) & \tickNone \\
+    Phòng chờ & Nút Ready gửi gói lên Server (Server chưa xử lý) & \tickHalf \\
     Thống kê & Bảng xếp hạng đọc qua REST & \tickDone \\
     Trận đấu & Bàn cờ $10\times10$ (giao diện) & \tickDone \\
-    Trận đấu & Đặt, xoay tàu, kiểm tra hợp lệ (chưa nối mạng) & \tickHalf \\
-    Trận đấu & Bắn, hiện trúng/hụt, sương mù, chat trong trận & \tickNone \\
+    Trận đấu & Đặt, xoay tàu, kiểm tra hợp lệ, gửi vị trí tàu lên Server & \tickDone \\
+    Trận đấu & Chat trong trận & \tickDone \\
+    Trận đấu & Bắn, hiện trúng/hụt, sương mù & \tickNone \\
     \bottomrule
   \end{tabularx}
   \par\vspace{0.05cm}
@@ -282,7 +284,7 @@
     arr/.style={-{Stealth[length=2mm]}, thick, color=brandblue}]
     \node[ph, fill=paleblue] (a) at (0,0)    {\textbf{10/09 -- 01/11}\\Nền tảng, mạng, đăng nhập, phòng, DB cloud\\[1pt]\textcolor{green!50!black}{\textbf{Phần lớn đã xong}}};
     \node[ph, fill=gold!40]  (b) at (2.75,0) {\textbf{02/11 -- 15/11}\\Tuần thi (02--08/11), báo cáo giữa kỳ, Matchmaking};
-    \node[ph, fill=white]    (c) at (5.5,0)  {\textbf{16/11 -- 02/12}\\Gameplay chia nhiều nhịp: xếp tàu, luật trận, tối ưu hiệu năng, quên mật khẩu, sương mù\\[1pt]\textbf{Đóng băng code 02/12}};
+    \node[ph, fill=white]    (c) at (5.5,0)  {\textbf{16/11 -- 02/12}\\Gameplay chia nhiều nhịp: xếp tàu, luật trận, tối ưu hiệu năng, quên mật khẩu, sương mù, kết nối lại giữa trận\\[1pt]\textbf{Đóng băng code 02/12}};
     \node[ph, fill=white]    (d) at (8.25,0) {\textbf{03/12 -- 08/12}\\Kiểm thử, Ngrok, báo cáo Chương 4--5};
     \node[ph, fill=white]    (e) at (11.0,0) {\textbf{09/12 -- 14/12}\\Đóng gói, chạy thử, hoàn thiện báo cáo};
     \draw[arr] (a) -- (b); \draw[arr] (b) -- (c); \draw[arr] (c) -- (d); \draw[arr] (d) -- (e);
