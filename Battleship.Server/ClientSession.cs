@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Battleship.Shared;
 
@@ -11,15 +12,21 @@ namespace Battleship.Server
     {
         public string SessionId { get; private set; }
         public TcpClient Client { get; private set; }
-        private NetworkStream _stream;
+        private readonly NetworkStream _stream;
 
-        // Khóa gửi: chặn 2 Task cùng ghi vào 1 stream làm xen kẽ byte của 2 gói.
-        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+        // Mục 4.6: Hàng đợi gửi riêng (Send Queue) cho từng Client + 1 Task ghi độc lập.
+        // Một client mạng chậm sẽ chỉ tích tụ trong hàng đợi của chính nó, không làm nghẽn client khác.
+        private readonly Channel<Packet> _sendChannel = Channel.CreateUnbounded<Packet>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-    // Tên đăng nhập, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
-    public string? Username { get; set; }
-    public string UserId { get; set; } = "";   // string cho khớp User.Id
-    public bool IsLoggedIn { get; set; } = false;
+        private readonly CancellationTokenSource _sessionCts = new CancellationTokenSource();
+        private readonly Task _sendLoopTask;
+        private int _cleanedUp = 0;
+
+        // Tên đăng nhập & UserId, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
+        public string? Username { get; set; }
+        public string UserId { get; set; } = ""; // string cho khớp User.Id
+        public bool IsLoggedIn { get; set; } = false;
 
         // Delegate báo cho Server biết Client này đã ngắt kết nối
         public event Action<ClientSession>? OnDisconnected;
@@ -32,6 +39,9 @@ namespace Battleship.Server
             SessionId = Guid.NewGuid().ToString("N");
             Client = client;
             _stream = client.GetStream();
+
+            // Khởi chạy 1 Task duy nhất chuyên đọc từ _sendChannel và ghi xuống _stream
+            _sendLoopTask = Task.Run(() => ProcessSendQueueAsync(_sessionCts.Token));
         }
 
         // Bắt tay phía Server trước khi vào vòng nhận gói nghiệp vụ.
@@ -40,20 +50,22 @@ namespace Battleship.Server
 
         public async Task StartReceivingAsync(CancellationToken ct = default)
         {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _sessionCts.Token);
+            var token = linkedCts.Token;
+
             try
             {
-                while (!ct.IsCancellationRequested)
+                while (!token.IsCancellationRequested)
                 {
                     // Đọc trọn 1 gói theo Framing 4-byte (đủ PayloadLength mới trả về).
-                    Packet? packet = await PacketFraming.ReadPacketAsync(_stream, ct);
-
+                    Packet? packet = await PacketFraming.ReadPacketAsync(_stream, token);
                     if (packet == null)
                     {
                         Console.WriteLine($"[Session {SessionId}] Client đóng kết nối bình thường.");
                         break;
                     }
 
-                    // Chuyển gói đã parse cho Router xử lý (thay cho TODO cũ của Thành viên A).
+                    // Chuyển gói đã parse cho Router xử lý
                     var handler = OnPacketReceived;
                     if (handler != null)
                         await handler(this, packet);
@@ -61,7 +73,7 @@ namespace Battleship.Server
             }
             catch (OperationCanceledException)
             {
-                // Server chủ động dừng, không phải lỗi.
+                // Server hoặc Session chủ động dừng, không phải lỗi.
             }
             catch (IOException ex) // Xử lý triệt để như Roadmap yêu cầu khi đứt cáp/lag
             {
@@ -86,30 +98,57 @@ namespace Battleship.Server
             }
         }
 
-        // Gửi 1 gói tin xuống client này (an toàn khi nhiều Task cùng gọi).
-        public async Task SendAsync(Packet packet, CancellationToken ct = default)
+        // Bỏ gói tin vào hàng gửi ngay lập tức (không chờ I/O mạng)
+        // Giữ nguyên kiểu trả về Task để tương thích 100% với code gọi bên ngoài (ví dụ Task.WhenAll)
+        public Task SendAsync(Packet packet, CancellationToken ct = default)
         {
-            await _sendLock.WaitAsync(ct);
+            if (_sessionCts.IsCancellationRequested || ct.IsCancellationRequested)
+                return Task.CompletedTask;
+
+            _sendChannel.Writer.TryWrite(packet);
+            return Task.CompletedTask;
+        }
+
+        // Vòng lặp chạy nền duy nhất ghi xuống NetworkStream (đảm bảo tuần tự 100%, không xen kẽ byte)
+        private async Task ProcessSendQueueAsync(CancellationToken ct)
+        {
             try
             {
-                await PacketFraming.SendPacketAsync(_stream, packet, ct);
+                await foreach (var packet in _sendChannel.Reader.ReadAllAsync(ct))
+                {
+                    await PacketFraming.SendPacketAsync(_stream, packet, ct);
+                }
             }
-            finally
+            catch (OperationCanceledException)
             {
-                _sendLock.Release();
+                // Dừng hàng đợi bình thường khi đóng phiên
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Session {SessionId}] Lỗi ghi SendQueue: {ex.Message}");
+                Cleanup();
             }
         }
 
         private void Cleanup()
         {
-            _stream?.Close();
-            Client?.Close();
+            // Đảm bảo Cleanup chỉ chạy đúng 1 lần dù cả luồng đọc và luồng ghi cùng gặp lỗi
+            if (Interlocked.Exchange(ref _cleanedUp, 1) == 1)
+                return;
+
+            _sendChannel.Writer.TryComplete();
+            _sessionCts.Cancel();
+
+            try { _stream?.Close(); } catch { }
+            try { Client?.Close(); } catch { }
+
             OnDisconnected?.Invoke(this); // Phát sự kiện để Server xóa khỏi danh sách Online
         }
 
         public void Dispose()
         {
             Cleanup();
+            _sessionCts.Dispose();
         }
     }
 }
