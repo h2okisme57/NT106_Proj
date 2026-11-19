@@ -173,8 +173,8 @@ namespace Battleship.Server.Handlers
                 HostName = room.Host.Username ?? room.Host.SessionId,
                 GuestName = room.Player2 != null ? (room.Player2.Username ?? room.Player2.SessionId) : null,
                 State = room.State == RoomState.WaitingForPlayers
-                    ? Battleship.Shared.RoomState.Waiting
-                    : Battleship.Shared.RoomState.Playing
+            ? Battleship.Shared.RoomState.Waiting
+            : Battleship.Shared.RoomState.Playing
             };
         }
     }

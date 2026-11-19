@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace Battleship.Server
@@ -13,6 +15,7 @@ namespace Battleship.Server
         TurnBasedPlay,     // Đang đánh theo lượt
         GameOver           // Kết thúc
     }
+
     public class GameRoom
     {
         public string RoomId { get; private set; }
@@ -23,6 +26,11 @@ namespace Battleship.Server
 
         // Quản lý trạng thái hiện tại của phòng
         public RoomState State { get; set; } = RoomState.WaitingForPlayers;
+
+        // --- MỤC 4.2: BÀN CỜ VÀ LƯỢT ĐÁNH CỦA 2 NGƯỜI CHƠI ---
+        public PlayerBoard HostBoard { get; private set; } = new PlayerBoard();
+        public PlayerBoard Player2Board { get; private set; } = new PlayerBoard();
+        public string? CurrentTurnSessionId { get; set; }
 
         // Đối tượng lock để đảm bảo luồng an toàn (Thread-safe) trong nội bộ phòng
         public readonly object RoomLock = new object();
@@ -40,18 +48,31 @@ namespace Battleship.Server
             if (Player2 == null)
             {
                 Player2 = player;
+                HostBoard = new PlayerBoard();
+                Player2Board = new PlayerBoard();
                 // Chuyển State Machine khi đủ người
                 State = RoomState.PlacementPhase;
             }
         }
+
         public void RemovePlayer(ClientSession player)
         {
             if (Player2 != null && Player2.SessionId == player.SessionId)
             {
                 Player2 = null;
-                // Lùi State Machine nếu có người thoạt
+                HostBoard = new PlayerBoard();
+                Player2Board = new PlayerBoard();
+                CurrentTurnSessionId = null;
+                // Lùi State Machine nếu có người thoát
                 State = RoomState.WaitingForPlayers;
             }
+        }
+
+        public PlayerBoard? GetBoard(ClientSession session)
+        {
+            if (Host.SessionId == session.SessionId) return HostBoard;
+            if (Player2 != null && Player2.SessionId == session.SessionId) return Player2Board;
+            return null;
         }
     }
 
@@ -111,6 +132,7 @@ namespace Battleship.Server
             }
             return false;
         }
+
         public GameRoom? GetRoom(string roomId)
         {
             _rooms.TryGetValue(roomId, out var room);
