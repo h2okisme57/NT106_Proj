@@ -41,6 +41,7 @@ namespace Battleship.Server.Models
                 if (!UseSupabase)
                 {
                     db.Database.EnsureCreated();
+                    EnsureEmailColumn(db);
                     return;
                 }
 
@@ -58,6 +59,31 @@ namespace Battleship.Server.Models
                     db.GetService<IRelationalDatabaseCreator>().CreateTables();
                     Console.WriteLine("[DB] Đã tạo các bảng Users, Matches, MatchDetails trên Supabase.");
                 }
+
+                EnsureEmailColumn(db);
+            }
+        }
+
+        // Bảng Users tạo từ trước chưa có cột Email (EnsureCreated không sửa bảng đã có).
+        // Tự thêm cột nếu thiếu, để ai chạy bản mới cũng không phải chạy SQL bằng tay.
+        private static void EnsureEmailColumn(AppDbContext db)
+        {
+            if (UseSupabase)
+            {
+                // PostgreSQL có sẵn "IF NOT EXISTS" nên chạy lại nhiều lần cũng không sao
+                db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"Email\" text");
+                return;
+            }
+
+            // SQLite không có "IF NOT EXISTS" cho cột nên phải tự kiểm tra trước
+            bool coCot = db.Database
+                .SqlQueryRaw<int>("SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('Users') WHERE name = 'Email'")
+                .AsEnumerable()
+                .First() > 0;
+            if (!coCot)
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Email TEXT");
+                Console.WriteLine("[DB] Đã thêm cột Email vào bảng Users.");
             }
         }
 

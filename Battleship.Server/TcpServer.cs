@@ -39,6 +39,11 @@ public class TcpServer
         _router.Register(PacketType.LoginRequest, authHandler);
         _router.Register(PacketType.RegisterRequest, authHandler);
 
+        // Hoàng - quên mật khẩu qua email (xin mã, đặt mật khẩu mới)
+        var passwordResetHandler = new PasswordResetHandler();
+        _router.Register(PacketType.ForgotPasswordRequest, passwordResetHandler);
+        _router.Register(PacketType.ResetPasswordRequest, passwordResetHandler);
+
         // Hoàng - tìm trận / hủy tìm trận
         var matchmakingHandler = new MatchmakingHandler(_matchmaking);
         _router.Register(PacketType.MatchmakingJoinRequest, matchmakingHandler);

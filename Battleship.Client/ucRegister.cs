@@ -15,10 +15,52 @@ namespace Battleship.Client
         private const int EM_SETMARGINS = 0xd3;
         private const int EC_LEFTMARGIN = 1;
 
+        // Ô Email thêm bằng code (không sửa Designer): dùng để lấy lại mật khẩu khi quên
+        private TextBox boxEmailTxt;
+        private const string EmailPlaceholder = "Email (để lấy lại mật khẩu)";
+
         public ucRegister()
         {
             InitializeComponent();
+            AddEmailBox();
             this.Load += ucRegister_Load;
+        }
+
+        private void AddEmailBox()
+        {
+            boxEmailTxt = new TextBox();
+            boxEmailTxt.Name = "boxEmailTxt";
+            boxEmailTxt.BackColor = Color.White;
+            boxEmailTxt.BorderStyle = BorderStyle.FixedSingle;
+            boxEmailTxt.ForeColor = Color.Gray;
+            boxEmailTxt.Font = boxUsernameTxt.Font;
+            boxEmailTxt.Size = boxUsernameTxt.Size;
+            boxEmailTxt.Text = EmailPlaceholder;
+
+            // Dồn các ô lên một chút để có chỗ chèn ô Email giữa Tên đăng nhập và Mật khẩu
+            boxUsernameTxt.Location = new Point(107, 100);
+            boxEmailTxt.Location = new Point(107, 145);
+            boxPasswordTxt.Location = new Point(107, 190);
+            boxConfirmPassword.Location = new Point(107, 235);
+
+            boxEmailTxt.Enter += (s, e) =>
+            {
+                if (boxEmailTxt.Text == EmailPlaceholder)
+                {
+                    boxEmailTxt.Text = "";
+                    boxEmailTxt.ForeColor = Color.Black;
+                }
+            };
+            boxEmailTxt.Leave += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(boxEmailTxt.Text))
+                {
+                    boxEmailTxt.Text = EmailPlaceholder;
+                    boxEmailTxt.ForeColor = Color.Gray;
+                }
+            };
+
+            this.Controls.Add(boxEmailTxt);
         }
 
         private void ucRegister_Load(object sender, EventArgs e)
@@ -27,6 +69,7 @@ namespace Battleship.Client
             SendMessage(boxUsernameTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
             SendMessage(boxPasswordTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
             SendMessage(boxConfirmPassword.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
+            SendMessage(boxEmailTxt.Handle, EM_SETMARGINS, (IntPtr)EC_LEFTMARGIN, (IntPtr)10);
 
             // CÀI ĐẶT PLACEHOLDER BAN ĐẦU
             boxUsernameTxt.Text = "Tên đăng nhập";
@@ -149,11 +192,13 @@ namespace Battleship.Client
             string user = boxUsernameTxt.Text.Trim();
             string pass = boxPasswordTxt.Text.Trim();
             string confirm = boxConfirmPassword.Text.Trim();
+            string email = boxEmailTxt.Text.Trim();
 
             // 1. Kiểm tra dữ liệu đầu vào
             if (string.IsNullOrWhiteSpace(user) || user == "Tên đăng nhập" ||
                 string.IsNullOrWhiteSpace(pass) || pass == "Mật khẩu" ||
-                string.IsNullOrWhiteSpace(confirm) || confirm == "Xác nhận mật khẩu")
+                string.IsNullOrWhiteSpace(confirm) || confirm == "Xác nhận mật khẩu" ||
+                string.IsNullOrWhiteSpace(email) || email == EmailPlaceholder)
             {
                 lblErrorTxt.ForeColor = Color.Red;
                 lblErrorTxt.Text = "Vui lòng nhập đầy đủ thông tin!";
@@ -189,7 +234,8 @@ namespace Battleship.Client
                 var regReq = new RegisterRequestDto
                 {
                     Username = user,
-                    Password = pass
+                    Password = pass,
+                    Email = email
                 };
                 var packet = Packet.Create(PacketType.RegisterRequest, regReq);
                 await NetworkManager.Instance.SendAsync(packet);

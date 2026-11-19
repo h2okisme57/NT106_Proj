@@ -39,7 +39,12 @@ public enum PacketType
     GetFriendsResponse,
     JoinRoomResponse,
     Ping,                       // Hoàng - 4.3 (heartbeat)
-    Pong                        // Hoàng - 4.3 (heartbeat)
+    Pong,                       // Hoàng - 4.3 (heartbeat)
+    // ----- Quên mật khẩu qua email (Hoàng) -----
+    ForgotPasswordRequest,      // xin mã xác nhận gửi về email của tài khoản
+    ForgotPasswordResponse,
+    ResetPasswordRequest,       // gửi mã + mật khẩu mới
+    ResetPasswordResponse
 }
 
 public class Packet
