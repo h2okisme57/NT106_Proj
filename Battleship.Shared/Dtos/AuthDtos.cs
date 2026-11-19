@@ -64,3 +64,16 @@ public class ResetPasswordResponseDto
     public string Message { get; set; } = string.Empty;
 }
 
+// ===== Đăng xuất (Logout) =====
+public class LogoutRequestDto
+{
+    public string Username { get; set; } = string.Empty;
+}
+
+public class LogoutResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
+
