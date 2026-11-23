@@ -48,7 +48,7 @@ namespace Battleship.Server.Handlers
                     await HandleKickPlayerAsync(session, packet);
                     break;
 
-                case PacketType.PlaceShips:
+                case PacketType.PlaceShipsRequest:
                     await HandlePlaceShipsAsync(session, packet);
                     break;
 
@@ -56,7 +56,7 @@ namespace Battleship.Server.Handlers
                     await HandlePlayerReadyAsync(session, packet);
                     break;
 
-                case PacketType.FireShot:
+                case PacketType.FireShotRequest:
                     await HandleFireShotAsync(session, packet);
                     break;
 
@@ -224,10 +224,13 @@ namespace Battleship.Server.Handlers
         {
             var dto = packet.DeserializePayload<PlaceShipsDto>();
 
-            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
+            if (dto == null)
                 return;
 
-            var room = _roomManager.GetRoom(dto.RoomId);
+            // Client có thể không gửi RoomId, khi đó tìm phòng theo người gửi.
+            var room = !string.IsNullOrWhiteSpace(dto.RoomId)
+                ? _roomManager.GetRoom(dto.RoomId)
+                : _roomManager.FindRoomBySession(session);
 
             if (room == null)
                 return;
@@ -320,7 +323,7 @@ namespace Battleship.Server.Handlers
             if (startMatch && room.Player2 != null)
             {
                 var startPacket = Packet.Create(
-                    PacketType.TurnChanged,
+                    PacketType.TurnChange,
                     new TurnChangedDto
                     {
                         RoomId = room.RoomId,
@@ -329,6 +332,17 @@ namespace Battleship.Server.Handlers
                         Reason = "GameStart"
                     });
 
+                var gameStartPacket = Packet.Create(
+                    PacketType.GameStart,
+                    new GameStartDto
+                    {
+                        RoomId = room.RoomId,
+                        FirstTurnUsername = firstTurnUsername,
+                        TimeLimitSeconds = TurnTimeLimitSeconds
+                    });
+
+                await room.Host.SendAsync(gameStartPacket);
+                await room.Player2.SendAsync(gameStartPacket);
                 await room.Host.SendAsync(startPacket);
                 await room.Player2.SendAsync(startPacket);
 
@@ -542,7 +556,7 @@ namespace Battleship.Server.Handlers
                 player2Session != null)
             {
                 var turnPacket = Packet.Create(
-                    PacketType.TurnChanged, turnChanged);
+                    PacketType.TurnChange, turnChanged);
 
                 await hostSession.SendAsync(turnPacket);
                 await player2Session.SendAsync(turnPacket);
@@ -620,7 +634,7 @@ namespace Battleship.Server.Handlers
                 player2Session != null)
             {
                 var timeoutPacket = Packet.Create(
-                    PacketType.TurnChanged, turnChanged);
+                    PacketType.TurnChange, turnChanged);
 
                 await hostSession.SendAsync(timeoutPacket);
                 await player2Session.SendAsync(timeoutPacket);

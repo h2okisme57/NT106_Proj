@@ -33,6 +33,14 @@ namespace Battleship.Server
 				return false;
 			}
 
+			// Luật: đúng 5 tàu với kích thước 5, 4, 3, 3, 2.
+			var expectedSizes = new[] { 5, 4, 3, 3, 2 };
+			if (!placements.Select(p => p.Size).OrderByDescending(x => x).SequenceEqual(expectedSizes))
+			{
+				errorMessage = "Cần đúng 5 tàu với kích thước 5, 4, 3, 3, 2.";
+				return false;
+			}
+
 			var tempShips = new List<ShipInstance>();
 			var occupiedCells = new HashSet<(int X, int Y)>();
 
