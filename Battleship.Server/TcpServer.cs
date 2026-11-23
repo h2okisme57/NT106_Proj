@@ -1,3 +1,4 @@
+
 using Battleship.Server.Handlers;
 using Battleship.Shared;
 using System;
@@ -10,76 +11,146 @@ using System.Threading.Tasks;
 
 namespace Battleship.Server;
 
-// Lõi mạng Server: lắng nghe TcpListener bất đồng bộ, mỗi client 1 Task riêng,
-// quản lý danh sách session online bằng ConcurrentDictionary (thread-safe).
+// Lõi mạng Server: lắng nghe TcpListener bất đồng bộ,
+// quản lý danh sách session online.
 public class TcpServer
 {
     private readonly TcpListener _listener;
     private readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
-    private readonly RoomManager _roomManager = new();   // phần của Đức (đã có sẵn)
+
+    private readonly RoomManager _roomManager = new();
     private readonly PacketRouter _router;
-    private readonly MatchmakingQueue _matchmaking;   // Hoàng - hàng đợi tìm trận
+    private readonly MatchmakingQueue _matchmaking;
     private readonly CancellationTokenSource _cts = new();
+
+    // Giữ tham chiếu RoomHandler để xử lý khi Client disconnect.
+    private RoomHandler? _roomHandler;
 
     public TcpServer(int port)
     {
         _listener = new TcpListener(IPAddress.Any, port);
         _router = new PacketRouter(_sessions);
         _matchmaking = new MatchmakingQueue(_roomManager);
+
         RegisterHandlers();
     }
 
-        // ===== ĐĂNG KÝ HANDLER: mỗi người THÊM 1 DÒNG cho mảng của mình, không sửa chỗ khác =====
+    // ============================================================
+    // ĐĂNG KÝ HANDLERS
+    // ============================================================
+
     private void RegisterHandlers()
     {
-        _router.Register(PacketType.ChatMessage, new ChatHandler(_router));   // Hoàng - chat sảnh
+        // Hoàng - Chat sảnh
+        _router.Register(
+            PacketType.ChatMessage,
+            new ChatHandler(_router));
 
-        // DONE (Dũng - 3.2): đăng ký AuthHandler cho LoginRequest / RegisterRequest / LogoutRequest
-        var authHandler = new AuthHandler(_router, s => _matchmaking.Cancel(s));
+        // Dũng - Authentication
+        var authHandler = new AuthHandler(
+            _router,
+            s => _matchmaking.Cancel(s));
+
         _router.Register(PacketType.LoginRequest, authHandler);
         _router.Register(PacketType.RegisterRequest, authHandler);
         _router.Register(PacketType.LogoutRequest, authHandler);
 
-        // Hoàng - quên mật khẩu qua email (xin mã, đặt mật khẩu mới)
+        // Hoàng - Password Reset
         var passwordResetHandler = new PasswordResetHandler();
-        _router.Register(PacketType.ForgotPasswordRequest, passwordResetHandler);
-        _router.Register(PacketType.ResetPasswordRequest, passwordResetHandler);
 
-        // Hoàng - tìm trận / hủy tìm trận
+        _router.Register(
+            PacketType.ForgotPasswordRequest,
+            passwordResetHandler);
+
+        _router.Register(
+            PacketType.ResetPasswordRequest,
+            passwordResetHandler);
+
+        // Hoàng - Matchmaking
         var matchmakingHandler = new MatchmakingHandler(_matchmaking);
-        _router.Register(PacketType.MatchmakingJoinRequest, matchmakingHandler);
-        _router.Register(PacketType.MatchmakingCancelRequest, matchmakingHandler);
 
-        // =========================================================================
-        // ĐĂNG KÝ THÊM HANDLER XỬ LÝ BẠN BÈ (FriendHandler)
-        // =========================================================================
+        _router.Register(
+            PacketType.MatchmakingJoinRequest,
+            matchmakingHandler);
+
+        _router.Register(
+            PacketType.MatchmakingCancelRequest,
+            matchmakingHandler);
+
+        // Friend Handler
         var friendHandler = new FriendHandler(_sessions);
-        _router.Register(PacketType.GetFriendsRequest, friendHandler);
 
-        // DONE (Đức - 3.4 & 4.2): đăng ký RoomHandler cho CreateRoom / JoinRoom / LeaveRoom / Kick
-        var roomHandler = new RoomHandler(_roomManager, _router);
-        _router.Register(PacketType.GetRoomListRequest, roomHandler);
-        _router.Register(PacketType.CreateRoomRequest, roomHandler);
-        _router.Register(PacketType.JoinRoomRequest, roomHandler);
-        _router.Register(PacketType.LeaveRoom, roomHandler);
-        _router.Register(PacketType.KickPlayerRequest, roomHandler);
+        _router.Register(
+            PacketType.GetFriendsRequest,
+            friendHandler);
+
+        // ========================================================
+        // Đức - RoomHandler và Battleship Gameplay
+        // ========================================================
+
+        _roomHandler = new RoomHandler(_roomManager, _router);
+
+        _router.Register(
+            PacketType.GetRoomListRequest,
+            _roomHandler);
+
+        _router.Register(
+            PacketType.CreateRoomRequest,
+            _roomHandler);
+
+        _router.Register(
+            PacketType.JoinRoomRequest,
+            _roomHandler);
+
+        _router.Register(
+            PacketType.LeaveRoom,
+            _roomHandler);
+
+        _router.Register(
+            PacketType.KickPlayerRequest,
+            _roomHandler);
+
+        // Gameplay packets
+        _router.Register(
+            PacketType.PlaceShips,
+            _roomHandler);
+
+        _router.Register(
+            PacketType.PlayerReady,
+            _roomHandler);
+
+        _router.Register(
+            PacketType.FireShot,
+            _roomHandler);
+
+        // ========================================================
+        // Dũng - Match History
+        // TODO: Đăng ký sự kiện lưu lịch sử khi hoàn thành DB.
+        // ========================================================
     }
 
+    // ============================================================
+    // KHỞI ĐỘNG TCP SERVER
+    // ============================================================
 
     public async Task StartAsync()
     {
         _listener.Start();
-        Console.WriteLine($"[TcpServer] Đang lắng nghe tại cổng {((IPEndPoint)_listener.LocalEndpoint).Port}...");
 
-        // chạy worker ghép cặp ở nền, không await để khỏi bị đứng ở đây
+        Console.WriteLine(
+            $"[TcpServer] Đang lắng nghe tại cổng " +
+            $"{((IPEndPoint)_listener.LocalEndpoint).Port}...");
+
+        // Worker ghép cặp chạy nền.
         _ = _matchmaking.RunAsync(_cts.Token);
 
         try
         {
             while (!_cts.IsCancellationRequested)
             {
-                TcpClient client = await _listener.AcceptTcpClientAsync(_cts.Token);
-                // Fire-and-forget: không await để vòng accept tiếp tục nhận client khác.
+                TcpClient client =
+                    await _listener.AcceptTcpClientAsync(_cts.Token);
+
                 _ = HandleClientAsync(client);
             }
         }
@@ -89,62 +160,111 @@ public class TcpServer
         }
     }
 
+    // ============================================================
+    // XỬ LÝ CLIENT KẾT NỐI
+    // ============================================================
+
     private async Task HandleClientAsync(TcpClient client)
     {
         var session = new ClientSession(client);
+
         session.OnDisconnected += OnSessionDisconnected;
         session.OnPacketReceived += _router.RouteAsync;
 
-        // Bắt tay kiểm tra phiên bản giao thức trước khi nhận gói nghiệp vụ.
         bool accepted = false;
+
         try
         {
             accepted = await session.PerformHandshakeAsync(_cts.Token);
         }
         catch (Exception ex)
         {
-            // gói rác / sai khóa AES / đứt mạng lúc bắt tay thì coi như thất bại,
-            // nếu không bắt ở đây thì socket bị bỏ mở mãi
-            Console.WriteLine($"[TcpServer] Lỗi lúc bắt tay ({ex.GetType().Name}): {ex.Message}");
+            Console.WriteLine(
+                $"[TcpServer] Lỗi lúc bắt tay " +
+                $"({ex.GetType().Name}): {ex.Message}");
         }
 
         if (!accepted)
         {
-            Console.WriteLine($"[TcpServer] Handshake thất bại -> đóng session {session.SessionId}");
+            Console.WriteLine(
+                $"[TcpServer] Handshake thất bại -> đóng session " +
+                $"{session.SessionId}");
+
             session.Dispose();
             return;
         }
 
         _sessions.TryAdd(session.SessionId, session);
-        Console.WriteLine($"[TcpServer] Client {session.SessionId} đã kết nối. Online: {_sessions.Count}");
+
+        Console.WriteLine(
+            $"[TcpServer] Client {session.SessionId} đã kết nối. " +
+            $"Online: {_sessions.Count}");
 
         await session.StartReceivingAsync(_cts.Token);
     }
 
+    // ============================================================
+    // XỬ LÝ KHI CLIENT MẤT KẾT NỐI
+    // ============================================================
+
     private void OnSessionDisconnected(ClientSession session)
     {
         _sessions.TryRemove(session.SessionId, out _);
-        OnlineUsers.Remove(session);   // trả tên đăng nhập để lần sau đăng nhập lại được
-        _matchmaking.Cancel(session);   // đang chờ tìm trận mà tắt app thì bỏ khỏi hàng đợi
-        Console.WriteLine($"[TcpServer] Client {session.SessionId} đã ngắt. Online: {_sessions.Count}");
-        // DONE (Dũng - 3.2): broadcast trạng thái Offline cho các client còn lại.
-        // Chỉ thông báo Offline nếu client này đã đăng nhập thành công trước đó
-        if (session.IsLoggedIn && !string.IsNullOrEmpty(session.Username))
+
+        OnlineUsers.Remove(session);
+
+        _matchmaking.Cancel(session);
+
+        Console.WriteLine(
+            $"[TcpServer] Client {session.SessionId} đã ngắt. " +
+            $"Online: {_sessions.Count}");
+
+        // Dũng - Broadcast trạng thái Offline.
+        if (session.IsLoggedIn &&
+            !string.IsNullOrEmpty(session.Username))
         {
             var offlinePacket = new Packet
             {
                 Type = PacketType.OnlineListUpdate,
-                // Tùy theo DTO bạn định nghĩa ở Shared, ở đây truyền tạm object nặc danh 
-                // chứa Username và Status để báo Client khác gỡ tên khỏi danh sách Online
-                Payload = JsonSerializer.Serialize(new { Username = session.Username, Status = "Offline" })
+
+                Payload = JsonSerializer.Serialize(
+                    new
+                    {
+                        Username = session.Username,
+                        Status = "Offline"
+                    })
             };
 
-            // Dùng fire-and-forget (_) vì hàm này đang là void (đồng bộ)
             _ = _router.BroadcastAsync(offlinePacket);
         }
 
-        // TODO (Đức - 3.4): nếu session đang trong phòng thì xử lý rời/huỷ phòng.
+        // Đức - Xử lý khi người chơi mất kết nối.
+        if (_roomHandler != null)
+        {
+            _ = HandleRoomDisconnectAsync(session);
+        }
     }
+
+    // Bọc xử lý disconnect để bắt exception từ tác vụ bất đồng bộ.
+    private async Task HandleRoomDisconnectAsync(ClientSession session)
+    {
+        try
+        {
+            if (_roomHandler != null)
+            {
+                await _roomHandler.HandleSessionDisconnectedAsync(session);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(
+                $"[TcpServer] Lỗi xử lý Room disconnect: {ex.Message}");
+        }
+    }
+
+    // ============================================================
+    // DỪNG SERVER
+    // ============================================================
 
     public void Stop()
     {
