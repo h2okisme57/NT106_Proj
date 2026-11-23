@@ -112,7 +112,7 @@ public class TcpServer
 
         // Gameplay packets
         _router.Register(
-            PacketType.PlaceShips,
+            PacketType.PlaceShipsRequest,
             _roomHandler);
 
         _router.Register(
@@ -120,7 +120,7 @@ public class TcpServer
             _roomHandler);
 
         _router.Register(
-            PacketType.FireShot,
+            PacketType.FireShotRequest,
             _roomHandler);
 
         // ========================================================
