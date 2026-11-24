@@ -41,6 +41,7 @@ namespace Battleship.Server
             set
             {
                 _username = value;
+                // Reset mốc Heartbeat ngay lúc đăng nhập để tránh tính thời gian chờ ở màn Login
                 if (!string.IsNullOrEmpty(value))
                 {
                     MarkPongReceived();
@@ -163,7 +164,7 @@ namespace Battleship.Server
             }
         }
 
-        // Chủ động ngắt kết nối (Heartbeat timeout hoặc tràn hàng đợi gửi)
+        // Chủ động ngắt kết nối (ví dụ: Heartbeat timeout > 15s)
         public void ForceDisconnect(string reason)
         {
             Console.WriteLine($"[Session {SessionId}] Ngắt kết nối chủ động ({reason}).");

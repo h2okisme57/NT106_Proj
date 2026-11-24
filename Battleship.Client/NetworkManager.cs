@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -83,6 +84,13 @@ namespace Battleship.Client
 
                     if (packet != null)
                     {
+                        // Tự động phản hồi Pong ngay khi nhận Ping từ Server (Heartbeat)
+                        if (packet.Type == PacketType.Ping)
+                        {
+                            _ = SendAsync(new Packet { Type = PacketType.Pong }, ct);
+                            continue;
+                        }
+
                         // Cất vào bộ đệm trước, rồi mới báo sự kiện
                         lock (_recentLock)
                         {
@@ -117,7 +125,10 @@ namespace Battleship.Client
         public async Task SendAsync(Packet packet, CancellationToken ct = default)
         {
             if (!IsConnected || _stream == null) return;
-            lock (_recentLock) { _lastSendAt = DateTime.UtcNow; }   // mốc: chỉ nhận phản hồi về SAU lần gửi này
+            if (packet.Type != PacketType.Pong)
+            {
+                lock (_recentLock) { _lastSendAt = DateTime.UtcNow; }   // mốc: chỉ nhận phản hồi về SAU lần gửi này
+            }
             try
             {
                 await PacketFraming.SendPacketAsync(_stream, packet, ct);
