@@ -14,10 +14,17 @@ namespace Battleship.Server
         public TcpClient Client { get; private set; }
         private readonly NetworkStream _stream;
 
-        // Mục 4.6: Hàng đợi gửi riêng (Send Queue) cho từng Client + 1 Task ghi độc lập.
-        // Một client mạng chậm sẽ chỉ tích tụ trong hàng đợi của chính nó, không làm nghẽn client khác.
-        private readonly Channel<Packet> _sendChannel = Channel.CreateUnbounded<Packet>(
-            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        // Mục 4.6: Hàng đợi gửi có giới hạn (BoundedChannel 1000 gói) + 1 Task ghi độc lập.
+        // Client mạng chậm tích tụ quá 1000 gói sẽ bị ngắt kết nối ngay để bảo vệ RAM Server.
+        private const int MaxSendQueueCapacity = 1000;
+
+        private readonly Channel<Packet> _sendChannel = Channel.CreateBounded<Packet>(
+            new BoundedChannelOptions(MaxSendQueueCapacity)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
+            });
 
         private readonly CancellationTokenSource _sessionCts = new CancellationTokenSource();
         private readonly Task _sendLoopTask;
@@ -121,14 +128,18 @@ namespace Battleship.Server
             }
         }
 
-        // Bỏ gói tin vào hàng gửi ngay lập tức (không chờ I/O mạng)
-        // Giữ nguyên kiểu trả về Task để tương thích 100% với code gọi bên ngoài (ví dụ Task.WhenAll)
+        // Bỏ gói tin vào hàng gửi có giới hạn ngay lập tức (không chờ I/O mạng).
+        // Nếu hàng đợi chạm ngưỡng 1000 gói (client quá chậm), ngắt riêng phiên đó.
         public Task SendAsync(Packet packet, CancellationToken ct = default)
         {
             if (_sessionCts.IsCancellationRequested || ct.IsCancellationRequested)
                 return Task.CompletedTask;
 
-            _sendChannel.Writer.TryWrite(packet);
+            if (!_sendChannel.Writer.TryWrite(packet))
+            {
+                ForceDisconnect($"Hàng đợi gửi đầy ({MaxSendQueueCapacity} gói) - client chậm");
+            }
+
             return Task.CompletedTask;
         }
 
