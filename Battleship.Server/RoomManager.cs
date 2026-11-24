@@ -10,6 +10,18 @@ using Battleship.Shared;
 namespace Battleship.Server
 {
     // ============================================================
+    // MỤC 4.5: DỮ LIỆU LỊCH SỬ TỪNG PHÁT BẮN (MATCH DETAILS)
+    // ============================================================
+
+    public record ShotRecord(
+        string ShooterUsername,
+        int X,
+        int Y,
+        bool IsHit,
+        DateTime FiredAtUtc
+    );
+
+    // ============================================================
     // TASK 2.1: STATE MACHINE - QUẢN LÝ TRẠNG THÁI PHÒNG
     // ============================================================
 
@@ -52,6 +64,9 @@ namespace Battleship.Server
         public PlayerBoard Player2Board { get; private set; }
             = new PlayerBoard();
 
+        // Lịch sử các phát bắn hợp lệ trong ván đấu hiện tại.
+        public List<ShotRecord> ShotHistory { get; } = new();
+
         // SessionId của người chơi đang có lượt đánh.
         public string? CurrentTurnSessionId { get; set; }
 
@@ -78,6 +93,7 @@ namespace Battleship.Server
 
                 HostBoard = new PlayerBoard();
                 Player2Board = new PlayerBoard();
+                ShotHistory.Clear();
 
                 State = RoomState.PlacementPhase;
             }
@@ -96,6 +112,7 @@ namespace Battleship.Server
                 Player2 = null;
                 HostBoard = new PlayerBoard();
                 Player2Board = new PlayerBoard();
+                ShotHistory.Clear();
                 CurrentTurnSessionId = null;
 
                 // Phòng quay lại trạng thái chờ người chơi.
@@ -247,11 +264,12 @@ namespace Battleship.Server
         // ========================================================
 
         // Cho phép các thành phần khác đăng ký xử lý khi trận đấu kết thúc.
-        public event Func<GameOverDto, Task>? OnMatchFinished;
+        public event Func<GameOverDto, IReadOnlyList<ShotRecord>, Task>? OnMatchFinished;
 
         // Phát sự kiện đến tất cả subscriber đã đăng ký.
         public async Task RaiseMatchFinishedAsync(
-            GameOverDto gameOverDto)
+            GameOverDto gameOverDto,
+            IReadOnlyList<ShotRecord> shots)
         {
             var handler = OnMatchFinished;
 
@@ -260,12 +278,12 @@ namespace Battleship.Server
 
             // Xử lý từng subscriber riêng biệt.
             // Mỗi Task đều được await để đảm bảo hoàn thành.
-            foreach (Func<GameOverDto, Task> subscriber
+            foreach (Func<GameOverDto, IReadOnlyList<ShotRecord>, Task> subscriber
                      in handler.GetInvocationList())
             {
                 try
                 {
-                    await subscriber(gameOverDto);
+                    await subscriber(gameOverDto, shots);
                 }
                 catch (Exception ex)
                 {
@@ -283,92 +301,80 @@ namespace Battleship.Server
         // 1. TẠO PHÒNG MỚI
         // TryAdd giúp tránh trùng RoomId.
         public GameRoom? CreateRoom(
-            string roomId,
-            ClientSession host)
+        string roomId,
+        ClientSession host)
         {
             var newRoom = new GameRoom(roomId, host);
-
             if (_rooms.TryAdd(roomId, newRoom))
             {
                 Console.WriteLine(
-                    $"[RoomManager] Đã tạo phòng {roomId}. " +
-                    $"Host: {host.SessionId}");
-
+                $"[RoomManager] Đã tạo phòng {roomId}. " +
+                $"Host: {host.SessionId}");
                 return newRoom;
             }
-
             return null;
         }
-
         // 2. THAM GIA PHÒNG
         // Chỉ cho phép thêm người chơi khi phòng còn chỗ.
         public bool JoinRoom(
-            string roomId,
-            ClientSession player)
+        string roomId,
+        ClientSession player)
         {
             if (_rooms.TryGetValue(roomId, out var room))
             {
                 lock (room.RoomLock)
                 {
                     if (!room.IsFull &&
-                        room.Host.SessionId != player.SessionId)
+                    room.Host.SessionId != player.SessionId)
                     {
                         room.AddPlayer(player);
-
                         Console.WriteLine(
-                            $"[RoomManager] {player.SessionId} " +
-                            $"đã vào phòng {roomId}");
-
+                        $"[RoomManager] {player.SessionId} " +
+                        $"đã vào phòng {roomId}");
                         return true;
                     }
                 }
             }
-
             return false;
         }
-
         // 3. KICK NGƯỜI CHƠI
         // Chỉ Host mới được quyền Kick Player2.
         public bool KickPlayer(
-            string roomId,
-            ClientSession requestClient,
-            ClientSession targetPlayer)
+        string roomId,
+        ClientSession requestClient,
+        ClientSession targetPlayer)
         {
             if (_rooms.TryGetValue(roomId, out var room))
             {
                 lock (room.RoomLock)
                 {
                     if (room.Host.SessionId ==
-                            requestClient.SessionId &&
-                        room.Player2 != null &&
-                        room.Player2.SessionId ==
-                            targetPlayer.SessionId)
+                    requestClient.SessionId &&
+                    room.Player2 != null &&
+                    room.Player2.SessionId ==
+                    targetPlayer.SessionId)
                     {
                         room.RemovePlayer(targetPlayer);
                         return true;
                     }
                 }
             }
-
             return false;
         }
-
         // 4. LẤY THÔNG TIN PHÒNG THEO ROOMID.
         public GameRoom? GetRoom(string roomId)
         {
             _rooms.TryGetValue(roomId, out var room);
             return room;
         }
-
         // 5. TÌM PHÒNG THEO NGƯỜI CHƠI.
         public GameRoom? FindRoomBySession(ClientSession session)
         {
             return _rooms.Values.FirstOrDefault(r =>
-                r.Host.SessionId == session.SessionId ||
-                (r.Player2 != null &&
-                 r.Player2.SessionId == session.SessionId));
+            r.Host.SessionId == session.SessionId ||
+            (r.Player2 != null &&
+            r.Player2.SessionId == session.SessionId));
         }
-
         // 6. LẤY DANH SÁCH TẤT CẢ PHÒNG.
         public List<GameRoom> GetAllRooms()
         {
@@ -379,8 +385,8 @@ namespace Battleship.Server
         // Host rời phòng: giải tán phòng.
         // Player2 rời phòng: giữ phòng và quay về trạng thái chờ.
         public bool LeaveRoom(
-            string roomId,
-            ClientSession session)
+        string roomId,
+        ClientSession session)
         {
             if (_rooms.TryGetValue(roomId, out var room))
             {
@@ -388,37 +394,29 @@ namespace Battleship.Server
                 {
                     // Dừng Timer trước khi xử lý người chơi rời phòng.
                     room.StopTurnTimer();
-
                     // Nếu Host rời phòng thì xóa toàn bộ phòng.
                     if (room.Host.SessionId ==
-                        session.SessionId)
+                    session.SessionId)
                     {
                         _rooms.TryRemove(roomId, out _);
-
                         Console.WriteLine(
-                            $"[RoomManager] Host rời phòng {roomId}");
-
+                        $"[RoomManager] Host rời phòng {roomId}");
                         return true;
                     }
-
                     // Nếu Player2 rời phòng thì chỉ xóa Player2.
                     if (room.Player2 != null &&
-                        room.Player2.SessionId ==
-                            session.SessionId)
+                    room.Player2.SessionId ==
+                    session.SessionId)
                     {
                         room.RemovePlayer(session);
-
                         Console.WriteLine(
-                            $"[RoomManager] Player2 rời phòng {roomId}");
-
+                        $"[RoomManager] Player2 rời phòng {roomId}");
                         return true;
                     }
                 }
             }
-
             return false;
         }
-
         // 8. XÓA PHÒNG KHỎI HỆ THỐNG.
         // Dừng Timer để tránh tác vụ cũ tiếp tục xử lý.
         public void RemoveRoom(string roomId)
