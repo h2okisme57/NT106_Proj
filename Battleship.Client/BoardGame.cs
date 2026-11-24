@@ -1,13 +1,13 @@
 ﻿using Battleship.Shared;
-using SQLitePCL;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Text.Json;
+using Timer = System.Windows.Forms.Timer;
 
 namespace Battleship.Client
 {
@@ -18,6 +18,10 @@ namespace Battleship.Client
         public bool IsPlaced { get; set; } = false;
         public List<Point> OccupiedCells { get; set; } = new List<Point>();
 
+        // Đếm số ô đã bị bắn trúng
+        public int HitCount { get; set; } = 0;
+        public bool IsSunk => HitCount >= Size;
+
         public ShipInfo(string name, int size)
         {
             Name = name;
@@ -25,22 +29,80 @@ namespace Battleship.Client
         }
     }
 
+    public class CellButton : Button
+    {
+        public bool IsShot { get; set; } = false;   // Đã bị bắn chưa
+        public bool HasShip { get; set; } = false;  // Có tàu không
+
+        public void SetShotState(bool isHit)
+        {
+            if (IsShot) return;
+
+            IsShot = true;
+            HasShip = isHit;
+
+            // Trúng tàu -> Đỏ | Bắn hụt -> Trắng xám
+            Color resultColor = isHit
+                ? Color.FromArgb(220, 53, 69)    // Đỏ
+                : Color.FromArgb(215, 220, 225); // Trắng xám
+
+            this.BackColor = resultColor;
+            this.FlatAppearance.MouseOverBackColor = resultColor;
+            this.FlatAppearance.MouseDownBackColor = resultColor;
+            this.Cursor = Cursors.No;
+        }
+
+        public void ResetState()
+        {
+            IsShot = false;
+            HasShip = false;
+            this.BackColor = Color.Transparent;
+            this.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            this.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            this.Cursor = Cursors.Hand;
+        }
+    }
+
     public partial class BoardGame : UserControl
     {
-        private Button[,] cells = new Button[10, 10];
+        private CellButton[,] cells = new CellButton[10, 10];
         private Image waterTile;
         private bool isResizing = false;
         private Point currentHover = new Point(-1, -1);
 
-        public bool IsEnemyBoard { get; set; } = false;
+        private Timer turnTimer;
+        private int secondsRemaining = 60;
+        private bool _isEnemyBoard = false;
+
+        public bool IsEnemyBoard
+        {
+            get => _isEnemyBoard;
+            set
+            {
+                _isEnemyBoard = value;
+                if (_isEnemyBoard)
+                {
+                    IsPlacementPhase = false;
+                }
+            }
+        }
+
         public bool IsPlacementPhase { get; set; } = true;
         public bool IsHorizontal { get; set; } = true;
+        public bool IsMyTurn { get; private set; } = false;
+        public int RemainingShots { get; private set; } = 0;
+
         public ShipInfo SelectedShip { get; set; }
         public int[,] BoardGrid { get; private set; } = new int[10, 10];
         public List<ShipInfo> PlayerShips { get; private set; } = new List<ShipInfo>();
 
         public event Action<int, int> OnCellClicked;
         public event Action<ShipInfo> OnShipPlacedSuccessfully;
+        public event Action OnAllShipsPlaced;
+        public event Action<int> OnRemainingShotsChanged;
+        public event Action<int> OnTimerTick;
+        public event Action OnTurnEnded;
+        public event Action<List<ShipInfo>> OnShipConditionUpdated;
 
         public BoardGame()
         {
@@ -48,12 +110,53 @@ namespace Battleship.Client
             waterTile = Properties.Resources.OceanBox;
 
             typeof(TableLayoutPanel).GetProperty("DoubleBuffered", BindingFlags.NonPublic | BindingFlags.Instance)
-                                  ?.SetValue(tableGame, true, null);
+                                    ?.SetValue(tableGame, true, null);
 
+            InitializeTurnTimer();
             InitializeDefaultShips();
             GenerateSingleBoard();
 
             tableGame.Paint += tableGame_Paint;
+        }
+
+        private void InitializeTurnTimer()
+        {
+            turnTimer = new Timer();
+            turnTimer.Interval = 1000;
+            turnTimer.Tick += TurnTimer_Tick;
+        }
+
+        private void TurnTimer_Tick(object sender, EventArgs e)
+        {
+            secondsRemaining--;
+            OnTimerTick?.Invoke(secondsRemaining);
+
+            if (secondsRemaining <= 0)
+            {
+                EndTurn(isTimeout: true);
+            }
+        }
+
+        public void StartTurn()
+        {
+            IsMyTurn = true;
+            RemainingShots = 5;
+            secondsRemaining = 60;
+
+            OnRemainingShotsChanged?.Invoke(RemainingShots);
+            OnTimerTick?.Invoke(secondsRemaining);
+
+            turnTimer.Start();
+        }
+
+        public void EndTurn(bool isTimeout = false)
+        {
+            turnTimer.Stop();
+            IsMyTurn = false;
+            RemainingShots = 0;
+
+            OnRemainingShotsChanged?.Invoke(RemainingShots);
+            OnTurnEnded?.Invoke();
         }
 
         private void InitializeDefaultShips()
@@ -91,7 +194,7 @@ namespace Battleship.Client
             {
                 for (int col = 0; col < 10; col++)
                 {
-                    Button btn = new Button()
+                    CellButton btn = new CellButton()
                     {
                         Dock = DockStyle.Fill,
                         FlatStyle = FlatStyle.Flat,
@@ -101,16 +204,11 @@ namespace Battleship.Client
                         Margin = new Padding(0),
                         TabStop = false
                     };
-                    if (IsEnemyBoard)
-                    {
-                        btn.Enabled = false;
-                    }
 
                     btn.FlatAppearance.BorderSize = 0;
                     btn.FlatAppearance.MouseOverBackColor = Color.Transparent;
                     btn.FlatAppearance.MouseDownBackColor = Color.Transparent;
 
-                    // Thay Click bằng MouseDown để bắt được Chuột trái (đặt tàu) và Chuột phải (xoay tàu)
                     btn.MouseDown += Cell_MouseDown;
                     btn.MouseEnter += Cell_MouseEnter;
                     btn.MouseLeave += Cell_MouseLeave;
@@ -140,50 +238,90 @@ namespace Battleship.Client
             return true;
         }
 
-        private async void Cell_MouseDown(object sender, MouseEventArgs e)
-        {   
-            if (IsEnemyBoard) return;
+        private void RegisterHitOnShip(int col, int row)
+        {
+            Point shotPoint = new Point(col, row);
+            var hitShip = PlayerShips.FirstOrDefault(s => s.OccupiedCells.Contains(shotPoint));
+            if (hitShip != null && hitShip.HitCount < hitShip.Size)
+            {
+                hitShip.HitCount++;
+                OnShipConditionUpdated?.Invoke(PlayerShips);
+            }
+        }
 
-            // Nếu bấm Chuột phải -> Xoay tàu
+        private async void Cell_MouseDown(object sender, MouseEventArgs e)
+        {
+            CellButton btn = sender as CellButton;
+            if (btn == null) return;
+
+            Point coords = (Point)btn.Tag;
+            int col = coords.X;
+            int row = coords.Y;
+
+            // --- NHÁNH 1: BẢNG ĐỊCH (BẮN TÀU) ---
+            if (IsEnemyBoard)
+            {
+                if (e.Button != MouseButtons.Left) return;
+                if (btn.IsShot) return;
+                if (IsPlacementPhase || !IsMyTurn || RemainingShots <= 0) return;
+
+                btn.SetShotState(btn.HasShip);
+                if (btn.HasShip)
+                {
+                    RegisterHitOnShip(col, row);
+                }
+
+                RemainingShots--;
+                OnRemainingShotsChanged?.Invoke(RemainingShots);
+
+                // TODO: Gửi tọa độ phát bắn (col, row) lên Server
+                OnCellClicked?.Invoke(col, row);
+
+                if (RemainingShots <= 0)
+                {
+                    EndTurn(isTimeout: false);
+                }
+                return;
+            }
+
+            // --- NHÁNH 2: BẢNG MÌNH (ĐẶT TÀU) ---
             if (e.Button == MouseButtons.Right)
             {
                 if (IsPlacementPhase) ToggleRotation();
                 return;
             }
-            
 
-            // Nếu bấm Chuột trái -> Tiến hành đặt tàu
             if (e.Button == MouseButtons.Left)
             {
-                Button btn = sender as Button;
-                Point coords = (Point)btn.Tag;
-                int col = coords.X;
-                int row = coords.Y;
-                if (!CanPlaceShip(col, row, SelectedShip.Size, IsHorizontal)) return;
                 if (IsPlacementPhase && SelectedShip != null && !SelectedShip.IsPlaced)
                 {
-                    if (CanPlaceShip(col, row, SelectedShip.Size, IsHorizontal))
+                    if (!CanPlaceShip(col, row, SelectedShip.Size, IsHorizontal)) return;
+
+                    SelectedShip.OccupiedCells.Clear();
+                    for (int i = 0; i < SelectedShip.Size; i++)
                     {
-                        SelectedShip.OccupiedCells.Clear();
-                        for (int i = 0; i < SelectedShip.Size; i++)
+                        int c = col + (IsHorizontal ? i : 0);
+                        int r = row + (IsHorizontal ? 0 : i);
+
+                        BoardGrid[c, r] = 1;
+                        cells[c, r].HasShip = true;
+                        SelectedShip.OccupiedCells.Add(new Point(c, r));
+                    }
+
+                    SelectedShip.IsPlaced = true;
+                    OnShipPlacedSuccessfully?.Invoke(SelectedShip);
+
+                    SelectedShip = PlayerShips.FirstOrDefault(s => !s.IsPlaced);
+                    if (SelectedShip == null)
+                    {
+                        IsPlacementPhase = false;
+                        MessageBox.Show("Đã bố trí xong hạm đội 5 tàu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        OnAllShipsPlaced?.Invoke();
+
+                        if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
                         {
-                            int c = col + (IsHorizontal ? i : 0);
-                            int r = row + (IsHorizontal ? 0 : i);
-
-                            BoardGrid[c, r] = 1;
-                            SelectedShip.OccupiedCells.Add(new Point(c, r));
+                            await SendMyShipsToServerAsync();
                         }
-
-                        SelectedShip.IsPlaced = true;
-                        OnShipPlacedSuccessfully?.Invoke(SelectedShip);
-
-                        SelectedShip = PlayerShips.FirstOrDefault(s => !s.IsPlaced);
-                        if (SelectedShip == null)
-                        {
-                            IsPlacementPhase = false;
-                            MessageBox.Show("Đã bố trí xong hạm đội 5 tàu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }
-                        SendMyShipsToServerAsync();
                     }
                 }
 
@@ -195,7 +333,8 @@ namespace Battleship.Client
         private void Cell_MouseEnter(object sender, EventArgs e)
         {
             if (IsEnemyBoard) return;
-            Button btn = sender as Button;
+            CellButton btn = sender as CellButton;
+            if (btn == null) return;
             currentHover = (Point)btn.Tag;
             tableGame.Invalidate();
         }
@@ -217,7 +356,7 @@ namespace Battleship.Client
             float cellW = w / 10f;
             float cellH = h / 10f;
 
-            // 1. VẼ ĐƯỜNG LƯỚI VIỀN XANH TRƯỚC (Để tàu có thể đè lên trên)
+            // 1. VẼ ĐƯỜNG LƯỚI VIỀN XANH
             Color Outline = Color.FromArgb(88, 160, 200);
             using (Pen pen = new Pen(Outline, 2))
             {
@@ -228,39 +367,41 @@ namespace Battleship.Client
                 }
             }
 
-            // 2. VẼ TÀU DẠNG HÌNH CHỮ NHẬT (Sát mép ô, đè che luôn viền)
-            using (SolidBrush shipBrush = new SolidBrush(Color.FromArgb(210, 80, 90, 100)))
-            using (Pen shipBorderPen = new Pen(Color.FromArgb(255, 200, 220, 240), 1.5f))
+            // 2. VẼ TÀU (Chỉ vẽ trên bảng mình)
+            if (!IsEnemyBoard)
             {
-                foreach (var ship in PlayerShips)
+                using (SolidBrush shipBrush = new SolidBrush(Color.FromArgb(210, 80, 90, 100)))
+                using (Pen shipBorderPen = new Pen(Color.FromArgb(255, 200, 220, 240), 1.5f))
                 {
-                    if (ship.IsPlaced && ship.OccupiedCells.Count > 0)
+                    foreach (var ship in PlayerShips)
                     {
-                        int minX = int.MaxValue, minY = int.MaxValue;
-                        int maxX = int.MinValue, maxY = int.MinValue;
-
-                        foreach (Point pt in ship.OccupiedCells)
+                        if (ship.IsPlaced && ship.OccupiedCells.Count > 0)
                         {
-                            if (pt.X < minX) minX = pt.X;
-                            if (pt.Y < minY) minY = pt.Y;
-                            if (pt.X > maxX) maxX = pt.X;
-                            if (pt.Y > maxY) maxY = pt.Y;
+                            int minX = int.MaxValue, minY = int.MaxValue;
+                            int maxX = int.MinValue, maxY = int.MinValue;
+
+                            foreach (Point pt in ship.OccupiedCells)
+                            {
+                                if (pt.X < minX) minX = pt.X;
+                                if (pt.Y < minY) minY = pt.Y;
+                                if (pt.X > maxX) maxX = pt.X;
+                                if (pt.Y > maxY) maxY = pt.Y;
+                            }
+
+                            float rectX = minX * cellW;
+                            float rectY = minY * cellH;
+                            float rectW = (maxX - minX + 1) * cellW;
+                            float rectH = (maxY - minY + 1) * cellH;
+
+                            g.FillRectangle(shipBrush, rectX, rectY, rectW, rectH);
+                            g.DrawRectangle(shipBorderPen, rectX, rectY, rectW, rectH);
                         }
-
-                        // Vẽ sát lề 100%, không bị hở padding
-                        float rectX = minX * cellW;
-                        float rectY = minY * cellH;
-                        float rectW = (maxX - minX + 1) * cellW;
-                        float rectH = (maxY - minY + 1) * cellH;
-
-                        g.FillRectangle(shipBrush, rectX, rectY, rectW, rectH);
-                        g.DrawRectangle(shipBorderPen, rectX, rectY, rectW, rectH);
                     }
                 }
             }
 
-            // 3. VẼ BÓNG MỜ TRƯỚC KHI ĐẶT TÀU (Xanh/Đỏ)
-            if (IsPlacementPhase && SelectedShip != null && !SelectedShip.IsPlaced && currentHover.X >= 0)
+            // 3. VẼ BÓNG MỜ TRƯỚC KHI ĐẶT TÀU
+            if (!IsEnemyBoard && IsPlacementPhase && SelectedShip != null && !SelectedShip.IsPlaced && currentHover.X >= 0)
             {
                 bool isValid = CanPlaceShip(currentHover.X, currentHover.Y, SelectedShip.Size, IsHorizontal);
                 Color hoverColor = isValid ? Color.FromArgb(140, 46, 204, 113) : Color.FromArgb(140, 231, 76, 60);
@@ -308,6 +449,53 @@ namespace Battleship.Client
                 cells[col, row].BackgroundImage = null;
         }
 
+        // Gọi từ bên ngoài khi Server trả kết quả bắn
+        public void UpdateCellShot(int col, int row, bool isHit)
+        {
+            if (col < 0 || col >= 10 || row < 0 || row >= 10) return;
+            if (!cells[col, row].IsShot)
+            {
+                cells[col, row].SetShotState(isHit);
+                if (isHit) RegisterHitOnShip(col, row);
+            }
+        }
+
+        // Rải tàu ẩn ngẫu nhiên trên bảng địch để test khi chưa có Server
+        public void SetupDummyEnemyShips()
+        {
+            if (!IsEnemyBoard) return;
+            Random rand = new Random();
+
+            foreach (var ship in PlayerShips)
+            {
+                ship.OccupiedCells.Clear();
+                ship.HitCount = 0;
+                ship.IsPlaced = false;
+
+                bool placed = false;
+                while (!placed)
+                {
+                    int col = rand.Next(10);
+                    int row = rand.Next(10);
+                    bool horiz = rand.Next(2) == 0;
+
+                    if (CanPlaceShip(col, row, ship.Size, horiz))
+                    {
+                        for (int i = 0; i < ship.Size; i++)
+                        {
+                            int c = col + (horiz ? i : 0);
+                            int r = row + (horiz ? 0 : i);
+                            BoardGrid[c, r] = 1;
+                            cells[c, r].HasShip = true;
+                            ship.OccupiedCells.Add(new Point(c, r));
+                        }
+                        ship.IsPlaced = true;
+                        placed = true;
+                    }
+                }
+            }
+        }
+
         public async Task SendMyShipsToServerAsync()
         {
             var shipDtos = new List<ShipPlacementDto>();
@@ -316,14 +504,12 @@ namespace Battleship.Client
             {
                 if (!ship.IsPlaced || ship.OccupiedCells.Count == 0) continue;
 
-                // Xác định tọa độ đầu và hướng của tàu
                 var firstCell = ship.OccupiedCells[0];
                 bool isHorizontal = true;
 
                 if (ship.OccupiedCells.Count > 1)
                 {
                     var secondCell = ship.OccupiedCells[1];
-                    // Nếu ô 1 và ô 2 cùng giá trị Y (hàng), tức là đang đặt nằm ngang
                     isHorizontal = (firstCell.Y == secondCell.Y);
                 }
 
@@ -337,17 +523,13 @@ namespace Battleship.Client
                 });
             }
 
-            // Đóng gói vào DTO chung
             var placeShipsDto = new PlaceShipsDto { Ships = shipDtos };
-
-            // Tạo Packet 
             var packet = new Packet
             {
                 Type = PacketType.PlaceShipsRequest,
                 Payload = JsonSerializer.Serialize(placeShipsDto)
             };
 
-            // Gửi qua NetworkManager
             await NetworkManager.Instance.SendAsync(packet);
         }
     }

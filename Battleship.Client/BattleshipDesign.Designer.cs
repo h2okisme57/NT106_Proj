@@ -480,11 +480,11 @@
             // 
             // lblShots
             // 
-            lblShots.Font = new Font("Segoe UI", 20F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblShots.Font = new Font("Segoe UI", 16F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblShots.ForeColor = Color.Gold;
-            lblShots.Location = new Point(70, 127);
+            lblShots.Location = new Point(0, 127);
             lblShots.Name = "lblShots";
-            lblShots.Size = new Size(150, 67);
+            lblShots.Size = new Size(278, 67);
             lblShots.TabIndex = 12;
             lblShots.Text = "PLACE";
             lblShots.TextAlign = ContentAlignment.MiddleCenter;
@@ -832,7 +832,6 @@
             label21.TabIndex = 7;
             label21.Text = "A";
             label21.TextAlign = ContentAlignment.MiddleCenter;
-            label21.Click += label21_Click;
             // 
             // pnlEnemyBoard
             // 
@@ -885,7 +884,6 @@
             lblPlayerName.TabIndex = 0;
             lblPlayerName.Text = "PLAYER NAME";
             lblPlayerName.TextAlign = ContentAlignment.MiddleCenter;
-            lblPlayerName.Click += lblPlayerName_Click;
             // 
             // pnlPlayerFrameBoard
             // 
