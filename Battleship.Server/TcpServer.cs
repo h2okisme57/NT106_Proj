@@ -1,4 +1,3 @@
-
 using Battleship.Server.Handlers;
 using Battleship.Shared;
 using System;
@@ -123,6 +122,11 @@ public class TcpServer
             PacketType.FireShotRequest,
             _roomHandler);
 
+        // Đức - Heartbeat Ping/Pong
+        var heartbeatHandler = new HeartbeatHandler();
+        _router.Register(PacketType.Ping, heartbeatHandler);
+        _router.Register(PacketType.Pong, heartbeatHandler);
+
         // ========================================================
         // Dũng - Match History
         // TODO: Đăng ký sự kiện lưu lịch sử khi hoàn thành DB.
@@ -143,6 +147,9 @@ public class TcpServer
 
         // Worker ghép cặp chạy nền.
         _ = _matchmaking.RunAsync(_cts.Token);
+
+        // Worker kiểm tra kết nối Heartbeat (5s gửi Ping, 15s timeout).
+        _ = RunHeartbeatLoopAsync(_cts.Token);
 
         try
         {
@@ -259,6 +266,43 @@ public class TcpServer
         {
             Console.WriteLine(
                 $"[TcpServer] Lỗi xử lý Room disconnect: {ex.Message}");
+        }
+    }
+
+    // ============================================================
+    // HEARTBEAT PING/PONG (5S GỬI PING, 15S TIMEOUT)
+    // ============================================================
+
+    private async Task RunHeartbeatLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        var pingPacket = new Packet { Type = PacketType.Ping };
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var nowUtc = DateTime.UtcNow;
+
+                foreach (var session in _sessions.Values)
+                {
+                    // Bỏ qua các session đang đứng ở màn hình Login chưa đăng nhập
+                    if (!session.IsLoggedIn)
+                        continue;
+
+                    if ((nowUtc - session.LastPongUtc).TotalSeconds > 15)
+                    {
+                        session.ForceDisconnect("Heartbeat timeout > 15s");
+                        continue;
+                    }
+
+                    _ = session.SendAsync(pingPacket);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("[TcpServer] Đã dừng Heartbeat worker.");
         }
     }
 
