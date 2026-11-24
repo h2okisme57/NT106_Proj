@@ -23,10 +23,33 @@ namespace Battleship.Server
         private readonly Task _sendLoopTask;
         private int _cleanedUp = 0;
 
+        // Theo dõi mốc thời gian nhận Pong gần nhất (thread-safe bằng Interlocked)
+        private long _lastPongTicks = DateTime.UtcNow.Ticks;
+        private string? _username;
+
         // Tên đăng nhập & UserId, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
-        public string? Username { get; set; }
+        public string? Username
+        {
+            get => _username;
+            set
+            {
+                _username = value;
+                // Reset mốc Heartbeat ngay lúc đăng nhập để tránh tính thời gian chờ ở màn Login
+                if (!string.IsNullOrEmpty(value))
+                {
+                    MarkPongReceived();
+                }
+            }
+        }
+
         public string UserId { get; set; } = ""; // string cho khớp User.Id
         public bool IsLoggedIn { get; set; } = false;
+
+        public void MarkPongReceived()
+            => Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
+
+        public DateTime LastPongUtc
+            => new DateTime(Interlocked.Read(ref _lastPongTicks), DateTimeKind.Utc);
 
         // Delegate báo cho Server biết Client này đã ngắt kết nối
         public event Action<ClientSession>? OnDisconnected;
@@ -128,6 +151,13 @@ namespace Battleship.Server
                 Console.WriteLine($"[Session {SessionId}] Lỗi ghi SendQueue: {ex.Message}");
                 Cleanup();
             }
+        }
+
+        // Chủ động ngắt kết nối (ví dụ: Heartbeat timeout > 15s)
+        public void ForceDisconnect(string reason)
+        {
+            Console.WriteLine($"[Session {SessionId}] Ngắt kết nối chủ động ({reason}).");
+            Cleanup();
         }
 
         private void Cleanup()
