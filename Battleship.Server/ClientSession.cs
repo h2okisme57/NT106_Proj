@@ -14,19 +14,48 @@ namespace Battleship.Server
         public TcpClient Client { get; private set; }
         private readonly NetworkStream _stream;
 
-        // Mục 4.6: Hàng đợi gửi riêng (Send Queue) cho từng Client + 1 Task ghi độc lập.
-        // Một client mạng chậm sẽ chỉ tích tụ trong hàng đợi của chính nó, không làm nghẽn client khác.
-        private readonly Channel<Packet> _sendChannel = Channel.CreateUnbounded<Packet>(
-            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        // Mục 4.6: Hàng đợi gửi có giới hạn (BoundedChannel 1000 gói) + 1 Task ghi độc lập.
+        // Client mạng chậm tích tụ quá 1000 gói sẽ bị ngắt kết nối ngay để bảo vệ RAM Server.
+        private const int MaxSendQueueCapacity = 1000;
+
+        private readonly Channel<Packet> _sendChannel = Channel.CreateBounded<Packet>(
+            new BoundedChannelOptions(MaxSendQueueCapacity)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
+            });
 
         private readonly CancellationTokenSource _sessionCts = new CancellationTokenSource();
         private readonly Task _sendLoopTask;
         private int _cleanedUp = 0;
 
+        // Theo dõi mốc thời gian nhận Pong gần nhất (thread-safe bằng Interlocked)
+        private long _lastPongTicks = DateTime.UtcNow.Ticks;
+        private string? _username;
+
         // Tên đăng nhập & UserId, gán sau khi Dũng xử lý Login (phục vụ hiển thị Online/Offline).
-        public string? Username { get; set; }
+        public string? Username
+        {
+            get => _username;
+            set
+            {
+                _username = value;
+                if (!string.IsNullOrEmpty(value))
+                {
+                    MarkPongReceived();
+                }
+            }
+        }
+
         public string UserId { get; set; } = ""; // string cho khớp User.Id
         public bool IsLoggedIn { get; set; } = false;
+
+        public void MarkPongReceived()
+            => Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
+
+        public DateTime LastPongUtc
+            => new DateTime(Interlocked.Read(ref _lastPongTicks), DateTimeKind.Utc);
 
         // Delegate báo cho Server biết Client này đã ngắt kết nối
         public event Action<ClientSession>? OnDisconnected;
@@ -98,14 +127,18 @@ namespace Battleship.Server
             }
         }
 
-        // Bỏ gói tin vào hàng gửi ngay lập tức (không chờ I/O mạng)
-        // Giữ nguyên kiểu trả về Task để tương thích 100% với code gọi bên ngoài (ví dụ Task.WhenAll)
+        // Bỏ gói tin vào hàng gửi có giới hạn ngay lập tức (không chờ I/O mạng).
+        // Nếu hàng đợi chạm ngưỡng 1000 gói (client quá chậm), ngắt riêng phiên đó.
         public Task SendAsync(Packet packet, CancellationToken ct = default)
         {
             if (_sessionCts.IsCancellationRequested || ct.IsCancellationRequested)
                 return Task.CompletedTask;
 
-            _sendChannel.Writer.TryWrite(packet);
+            if (!_sendChannel.Writer.TryWrite(packet))
+            {
+                ForceDisconnect($"Hàng đợi gửi đầy ({MaxSendQueueCapacity} gói) - client chậm");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -128,6 +161,13 @@ namespace Battleship.Server
                 Console.WriteLine($"[Session {SessionId}] Lỗi ghi SendQueue: {ex.Message}");
                 Cleanup();
             }
+        }
+
+        // Chủ động ngắt kết nối (Heartbeat timeout hoặc tràn hàng đợi gửi)
+        public void ForceDisconnect(string reason)
+        {
+            Console.WriteLine($"[Session {SessionId}] Ngắt kết nối chủ động ({reason}).");
+            Cleanup();
         }
 
         private void Cleanup()
