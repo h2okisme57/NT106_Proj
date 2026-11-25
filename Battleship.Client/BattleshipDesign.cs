@@ -13,7 +13,7 @@ namespace Battleship.Client
     public enum GameTurnState
     {
         PlacingShips,    // Giai đoạn tự xếp 5 tàu
-        WaitingOpponent, // Đã xếp xong, chờ đối thủ xếp tàu
+        Waiting, // Đã xếp xong, chờ đối thủ xếp tàu
         MyTurn,          // Lượt của mình (được bắn 5 viên, đếm ngược 60s)
         EnemyTurn,       // Lượt của đối thủ (khóa bảng, chờ địch bắn)
         GameOver         // Kết thúc trận đấu
@@ -25,36 +25,45 @@ namespace Battleship.Client
         private BoardGame playerBoard;
         public BoardGame EnemyBoard;
         private MatchFoundDto _currentMatch;
+        private bool _isCleanedUp = false;
 
         public GameTurnState CurrentState { get; private set; } = GameTurnState.PlacingShips;
 
-        public int TurnDurationSeconds { get; set; } = 60;
+        public int TurnDurationSeconds { get; set; } = 30;
         private Timer _turnTimer;
         private int _secondsLeft;
 
         private TextBox boxChat;
         private bool _Chat = false;
 
-        public BattleshipDesign()
+        public BattleshipDesign(MatchFoundDto matchInfo = null)
         {
             InitializeComponent();
 
             this.Load += BattleshipDesign_Load;
+            this.Disposed += BattleshipDesign_Disposed;
 
-            _currentMatch = new MatchFoundDto
+            _currentMatch = matchInfo ?? new MatchFoundDto
             {
                 RoomId = "Room_Test_999",
-                OpponentName = "Kẻ Hủy Diệt",
+                OpponentName = "Waiting for opponent...",
                 IsHost = true
             };
 
             SetupPlayerNames();
             SetupPlayerBoard();
 
+            Form parentForm = this.FindForm();
+            if (parentForm != null)
+            {
+                parentForm.FormClosing += ParentForm_FormClosing;
+            }
+
             if (NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.OnPacketReceived += NetworkManager_OnPacketReceived;
             }
+
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
@@ -136,14 +145,18 @@ namespace Battleship.Client
             };
 
             // 2. Khi xếp xong đủ 5 tàu trên bảng của mình
-            playerBoard.OnAllShipsPlaced += () =>
+            playerBoard.OnAllShipsPlaced += async () =>
             {
-                SetTurnState(GameTurnState.WaitingOpponent);
+                SetTurnState(GameTurnState.Waiting);
 
-                // --- CHẾ ĐỘ TEST TẠM KHI CHƯA CÓ SERVER ---
-                EnemyBoard.SetupDummyEnemyShips();
-                SetTurnState(GameTurnState.MyTurn);
-                // ------------------------------------------
+                try
+                {
+                    await playerBoard.SendMyShipsToServerAsync(_currentMatch.RoomId);
+                }
+                catch (Exception ex)
+                {
+                    AddChatMessage("Hệ thống", $"Lỗi gửi đội hình tàu: {ex.Message}");
+                }
             };
 
             // 3. Cập nhật tình trạng tàu khi có tàu bị bắn trúng (đỏ từ trái sang phải)
@@ -189,9 +202,9 @@ namespace Battleship.Client
                     UpdateAllShipsConditionUI(EnemyBoard.PlayerShips, isEnemy: true);
                     break;
 
-                case GameTurnState.WaitingOpponent:
+                case GameTurnState.Waiting:
                     playerBoard.IsPlacementPhase = false;
-                    if (lblShots != null) lblShots.Text = "Waiting for opponent...";
+                    if (lblShots != null) lblShots.Text = "Waiting...";
                     StopTurnTimer("--");
                     UpdateShotsUI(0);
                     break;
@@ -239,7 +252,7 @@ namespace Battleship.Client
 
             for (int i = 0; i < orderedPics.Count; i++)
             {
-                string status = (i < remainingShots) ? "miss" : "gray";
+                string status = (i < remainingShots) ? "Shoots" : "Used";
                 UpdateCellStatus(orderedPics[i], status);
             }
         }
@@ -297,12 +310,12 @@ namespace Battleship.Client
                 string status;
                 if (!isPlaced)
                 {
-                    status = "gray"; // Chưa đặt tàu -> xám
+                    status = "Used"; // Chưa đặt tàu -> xám
                 }
                 else
                 {
-                    // Đã đặt tàu -> bị bắn trúng tô đỏ từ trái sang phải, còn lại xanh lá
-                    status = (i < hitCount) ? "red" : "miss";
+                    // Đã đặt tàu -> bị bắn trúng tô vàng từ trái sang phải, còn lại xám
+                    status = (i < hitCount) ? "Damaged" : "Undamaged";
                 }
 
                 UpdateCellStatus(orderedPics[i], status);
@@ -401,16 +414,16 @@ namespace Battleship.Client
 
             switch (status.ToLower())
             {
-                case "red":
+                case "damaged":
                     targetCell.Image = CreateCircleImage(Color.Red, size);
                     break;
-                case "miss":
+                case "undamaged":
                     targetCell.Image = CreateCircleImage(Color.LimeGreen, size);
                     break;
-                case "destroyed":
+                case "shoots":
                     targetCell.Image = CreateCircleImage(Color.Yellow, size);
                     break;
-                case "gray":
+                case "used":
                     targetCell.Image = CreateCircleImage(Color.Gray, size);
                     break;
                 default:
@@ -458,7 +471,7 @@ namespace Battleship.Client
                         };
 
                         table.Controls.Add(picBox, col, row);
-                        UpdateCellStatus(picBox, "gray");
+                        UpdateCellStatus(picBox, "Used");
                     }
                 }
             }
@@ -576,6 +589,44 @@ namespace Battleship.Client
                 {
                     boxChat.Visible = false;
                     boxChat.Clear();
+                }
+            }
+        }
+
+        private void ParentForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            CleanupAndLeaveRoom();
+        }
+
+        private void BattleshipDesign_Disposed(object sender, EventArgs e)
+        {
+            Form parentForm = this.FindForm();
+            if (parentForm != null)
+            {
+                parentForm.FormClosing -= ParentForm_FormClosing;
+            }
+
+            CleanupAndLeaveRoom();
+        }
+
+        private void CleanupAndLeaveRoom()
+        {
+            if (_isCleanedUp) return;
+            _isCleanedUp = true;
+
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
+
+                if (NetworkManager.Instance.IsConnected && !string.IsNullOrEmpty(_currentMatch?.RoomId))
+                {
+                    try
+                    {
+                        var leaveDto = new LeaveRoomDto { RoomId = _currentMatch.RoomId };
+                        // Gửi dạng fire-and-forget vì Disposed không chờ async
+                        _ = NetworkManager.Instance.SendAsync(Packet.Create(PacketType.LeaveRoom, leaveDto));
+                    }
+                    catch { /* bỏ qua nếu socket đã đóng */ }
                 }
             }
         }
