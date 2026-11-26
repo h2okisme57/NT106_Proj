@@ -819,7 +819,6 @@
             label22.TabIndex = 8;
             label22.Text = "B";
             label22.TextAlign = ContentAlignment.MiddleCenter;
-
             // 
             // label21
             // 
@@ -884,6 +883,7 @@
             lblPlayerName.TabIndex = 0;
             lblPlayerName.Text = "PLAYER NAME";
             lblPlayerName.TextAlign = ContentAlignment.MiddleCenter;
+            lblPlayerName.Click += lblPlayerName_Click;
             // 
             // pnlPlayerFrameBoard
             // 

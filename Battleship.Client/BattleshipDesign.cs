@@ -56,7 +56,6 @@ namespace Battleship.Client
                 IsHost = true
             };
 
-            SetupPlayerNames();
             SetupPlayerBoard();
 
             if (NetworkManager.Instance != null)
@@ -85,6 +84,7 @@ namespace Battleship.Client
                 parentForm.FormClosing += ParentForm_FormClosing;
             }
 
+            SetupPlayerNames();
             InitTurnTimer();
             SetDefaultGrayColors();
             CreateTransparentChatBox();
@@ -155,6 +155,20 @@ namespace Battleship.Client
                     EnemyBoard.EndTurn();
                 }
             }
+        }
+
+        private void SetupPlayerNames()
+        {
+            string myName = !string.IsNullOrWhiteSpace(PlayerProfile.Username)
+                ? PlayerProfile.Username
+                : "Player 1";
+
+            string enemyName = !string.IsNullOrWhiteSpace(_currentMatch?.OpponentName)
+                ? _currentMatch.OpponentName
+                : "Waiting for opponent...";
+
+            if (lblPlayerName != null) lblPlayerName.Text = myName;
+            if (lblEnemyName != null) lblEnemyName.Text = enemyName;
         }
 
         private void SetupPlayerBoard()
@@ -269,6 +283,9 @@ namespace Battleship.Client
             switch (newState)
             {
                 case GameTurnState.PlacingShips:
+                    if (lblPlayerName != null) lblPlayerName.ForeColor = Color.White;
+                    if (lblEnemyName != null) lblEnemyName.ForeColor = Color.White;
+
                     playerBoard.IsPlacementPhase = true;
                     if (lblShots != null) lblShots.Text = "Place Ships";
                     StopTurnTimer($"{TurnDurationSeconds}s");
@@ -278,6 +295,9 @@ namespace Battleship.Client
                     break;
 
                 case GameTurnState.Waiting:
+                    if (lblPlayerName != null) lblPlayerName.ForeColor = Color.White;
+                    if (lblEnemyName != null) lblEnemyName.ForeColor = Color.White;
+
                     playerBoard.IsPlacementPhase = false;
                     if (lblShots != null) lblShots.Text = "Waiting...";
                     StopTurnTimer("--");
@@ -285,8 +305,8 @@ namespace Battleship.Client
                     break;
 
                 case GameTurnState.MyTurn:
-                    pnlPlayerName.ForeColor = Color.LimeGreen;
-                    pnlEnemyName.ForeColor = Color.White;
+                    if (lblPlayerName != null) lblPlayerName.ForeColor = Color.Yellow;
+                    if (lblEnemyName != null) lblEnemyName.ForeColor = Color.White;
 
                     if (lblShots != null) lblShots.Text = "Your turn";
                     StartTurnTimer(TurnDurationSeconds);
@@ -299,8 +319,8 @@ namespace Battleship.Client
                 case GameTurnState.EnemyTurn:
                     if (EnemyBoard.IsMyTurn) EnemyBoard.EndTurn();
 
-                    pnlPlayerName.ForeColor = Color.White;
-                    pnlEnemyName.ForeColor = Color.OrangeRed;
+                    if (lblPlayerName != null) lblPlayerName.ForeColor = Color.White;
+                    if (lblEnemyName != null) lblEnemyName.ForeColor = Color.Yellow;
 
                     if (lblShots != null) lblShots.Text = "Enemy's turn";
                     StartTurnTimer(TurnDurationSeconds);
@@ -308,6 +328,9 @@ namespace Battleship.Client
                     break;
 
                 case GameTurnState.GameOver:
+                    if (lblPlayerName != null) lblPlayerName.ForeColor = Color.White;
+                    if (lblEnemyName != null) lblEnemyName.ForeColor = Color.White;
+
                     playerBoard.IsPlacementPhase = false;
                     if (EnemyBoard.IsMyTurn) EnemyBoard.EndTurn();
                     if (lblShots != null) lblShots.Text = "End of game";
@@ -542,8 +565,8 @@ namespace Battleship.Client
             _connectionCheckTimer?.Stop();
             SetTurnState(GameTurnState.GameOver);
 
-            pnlPlayerName.ForeColor = isWinner ? Color.LimeGreen : Color.OrangeRed;
-            pnlEnemyName.ForeColor = isWinner ? Color.OrangeRed : Color.LimeGreen;
+            if (lblPlayerName != null) lblPlayerName.ForeColor = Color.White;
+            if (lblEnemyName != null) lblEnemyName.ForeColor = Color.White;
 
             if (lblShots != null)
             {
@@ -738,14 +761,6 @@ namespace Battleship.Client
             }));
         }
 
-        private void SetupPlayerNames()
-        {
-            string myName = PlayerProfile.Username ?? string.Empty;
-            string enemyName = _currentMatch?.OpponentName ?? "Waiting for opponent...";
-
-            pnlPlayerName.Text = myName;
-            pnlEnemyName.Text = enemyName;
-        }
 
         private Image CreateCircleImage(Color color, int size)
         {
@@ -1070,5 +1085,10 @@ namespace Battleship.Client
         private void lblPlayerName_Click(object sender, PaintEventArgs e) { }
         private void button1_Click(object sender, EventArgs e) { }
         private void boxChat_TextChanged(object sender, EventArgs e) { }
+
+        private void lblPlayerName_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }
