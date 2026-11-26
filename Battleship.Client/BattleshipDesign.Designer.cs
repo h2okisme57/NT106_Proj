@@ -819,7 +819,7 @@
             label22.TabIndex = 8;
             label22.Text = "B";
             label22.TextAlign = ContentAlignment.MiddleCenter;
-            label22.Click += label22_Click;
+
             // 
             // label21
             // 
