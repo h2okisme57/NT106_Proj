@@ -13,8 +13,8 @@ namespace Battleship.Client
     {
         PlacingShips,    // Giai đoạn tự xếp 5 tàu
         Waiting,         // Đã xếp xong, chờ đối thủ xếp tàu
-        MyTurn,          // Lượt của mình
-        EnemyTurn,       // Lượt của đối thủ (khóa bảng, chờ địch bắn)
+        MyTurn,          // Lượt của mình (5 viên đạn, đếm ngược)
+        EnemyTurn,       // Lượt của đối thủ
         GameOver         // Kết thúc trận đấu
     }
 
@@ -24,13 +24,15 @@ namespace Battleship.Client
         private BoardGame playerBoard;
         public BoardGame EnemyBoard;
         private MatchFoundDto _currentMatch;
-        private bool _myShipsPlaced = false;
-        private bool _enemyShipsPlaced = false;
-        private bool _matchStarted = false;
+
+        public bool IsOnlineMode { get; private set; } = true;
 
         private bool _isCleanedUp = false;
         private bool _isGameOverHandled = false;
         private bool _wasConnected = false;
+        private bool _myShipsPlaced = false;
+        private bool _enemyShipsPlaced = false;
+        private bool _matchStarted = false;
 
         public GameTurnState CurrentState { get; private set; } = GameTurnState.PlacingShips;
 
@@ -49,16 +51,20 @@ namespace Battleship.Client
             this.Load += BattleshipDesign_Load;
             this.Disposed += BattleshipDesign_Disposed;
 
+            // matchInfo == null -> Chế độ Test cục bộ | matchInfo != null -> Chế độ Online
+            IsOnlineMode = (matchInfo != null);
+
             _currentMatch = matchInfo ?? new MatchFoundDto
             {
-                RoomId = "Room_Test_999",
-                OpponentName = "Waiting for opponent...",
+                RoomId = "TEST_ROOM_01",
+                OpponentName = "Test Target",
                 IsHost = true
             };
 
+            SetupPlayerNames();
             SetupPlayerBoard();
 
-            if (NetworkManager.Instance != null)
+            if (IsOnlineMode && NetworkManager.Instance != null)
             {
                 _wasConnected = NetworkManager.Instance.IsConnected;
                 NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
@@ -88,6 +94,22 @@ namespace Battleship.Client
             InitTurnTimer();
             SetDefaultGrayColors();
             CreateTransparentChatBox();
+
+            if (!IsOnlineMode)
+            {
+                // Chế độ Test: đặt cố định 5 tàu (true = hàng ngang 1 từ X=0, false = cột dọc 1 từ Y=0)
+                bool placeHorizontally = true;
+                playerBoard.PlaceFixedTestShips(placeHorizontally);
+                EnemyBoard.PlaceFixedTestShips(placeHorizontally);
+
+                UpdateAllShipsConditionUI(playerBoard.PlayerShips, isEnemy: false);
+                UpdateAllShipsConditionUI(EnemyBoard.PlayerShips, isEnemy: true);
+
+                AddChatMessage("Test", "Chế độ Test: Đã đặt cố định 5 tàu. Bắt đầu thử nghiệm bắn & bộ đếm giờ!");
+                SetTurnState(GameTurnState.MyTurn);
+                return;
+            }
+
             SetTurnState(GameTurnState.PlacingShips);
         }
 
@@ -97,10 +119,13 @@ namespace Battleship.Client
             _turnTimer.Interval = 1000;
             _turnTimer.Tick += TurnTimer_Tick;
 
-            _connectionCheckTimer = new Timer();
-            _connectionCheckTimer.Interval = 1000;
-            _connectionCheckTimer.Tick += ConnectionCheckTimer_Tick;
-            _connectionCheckTimer.Start();
+            if (IsOnlineMode)
+            {
+                _connectionCheckTimer = new Timer();
+                _connectionCheckTimer.Interval = 1000;
+                _connectionCheckTimer.Tick += ConnectionCheckTimer_Tick;
+                _connectionCheckTimer.Start();
+            }
         }
 
         private void ConnectionCheckTimer_Tick(object sender, EventArgs e)
@@ -149,26 +174,27 @@ namespace Battleship.Client
             {
                 _turnTimer.Stop();
 
-                // Hết giờ: khóa tạm bảng địch trong khi chờ Server gửi PacketType.TurnChange
-                if (CurrentState == GameTurnState.MyTurn && EnemyBoard.IsMyTurn)
+                if (IsOnlineMode)
                 {
-                    EnemyBoard.EndTurn();
+                    if (CurrentState == GameTurnState.MyTurn && EnemyBoard.IsMyTurn)
+                    {
+                        EnemyBoard.EndTurn();
+                    }
+                    return;
+                }
+
+                // Chế độ Test: luân chuyển MyTurn <-> EnemyTurn khi hết giờ để test timer
+                if (CurrentState == GameTurnState.MyTurn)
+                {
+                    AddChatMessage("Test", "Hết thời gian MyTurn -> chuyển sang đếm giờ EnemyTurn.");
+                    SetTurnState(GameTurnState.EnemyTurn);
+                }
+                else if (CurrentState == GameTurnState.EnemyTurn)
+                {
+                    AddChatMessage("Test", "Hết thời gian EnemyTurn -> quay lại MyTurn (nạp 5 phát bắn).");
+                    SetTurnState(GameTurnState.MyTurn);
                 }
             }
-        }
-
-        private void SetupPlayerNames()
-        {
-            string myName = !string.IsNullOrWhiteSpace(PlayerProfile.Username)
-                ? PlayerProfile.Username
-                : "Player 1";
-
-            string enemyName = !string.IsNullOrWhiteSpace(_currentMatch?.OpponentName)
-                ? _currentMatch.OpponentName
-                : "Waiting for opponent...";
-
-            if (lblPlayerName != null) lblPlayerName.Text = myName;
-            if (lblEnemyName != null) lblEnemyName.Text = enemyName;
         }
 
         private void SetupPlayerBoard()
@@ -185,16 +211,19 @@ namespace Battleship.Client
             pnlPlayerBoard.Controls.Add(playerBoard);
             pnlEnemyBoard.Controls.Add(EnemyBoard);
 
-            // Bật chế độ Online cho cả 2 bảng
-            playerBoard.IsOnlineMode = true;
-            EnemyBoard.IsOnlineMode = true;
+            playerBoard.IsOnlineMode = IsOnlineMode;
+            playerBoard.CurrentRoomId = _currentMatch.RoomId;
+
+            EnemyBoard.IsOnlineMode = IsOnlineMode;
+            EnemyBoard.CurrentRoomId = _currentMatch.RoomId;
             EnemyBoard.IsEnemyBoard = true;
+            EnemyBoard.IsPlacementPhase = false;
 
             // 1. Vừa đặt xong con tàu nào -> bảng tình trạng tàu đó chuyển sang xanh lá ngay
             playerBoard.OnShipPlacedSuccessfully += (placedShip) =>
             {
                 TableLayoutPanel targetTable = GetShipConditionTable(placedShip.Name, isEnemy: false);
-                UpdateSingleShipCondition(targetTable, placedShip.IsPlaced, placedShip.HitCount);
+                UpdateSingleShipCondition(targetTable, placedShip, isEnemy: false);
             };
 
             // 2. Khi xếp xong đủ 5 tàu trên bảng của mình
@@ -203,24 +232,21 @@ namespace Battleship.Client
                 if (_isGameOverHandled) return;
 
                 _myShipsPlaced = true;
+
+                if (!IsOnlineMode)
+                {
+                    SetTurnState(GameTurnState.MyTurn);
+                    return;
+                }
+
                 SetTurnState(GameTurnState.Waiting);
 
                 try
                 {
-                    // Gửi đội hình 5 tàu lên Server
                     await playerBoard.SendMyShipsToServerAsync(_currentMatch.RoomId);
 
                     if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
                     {
-                        // Gửi kèm PlayerReadyDto để Server kích hoạt GameStart
-                        var readyDto = new PlayerReadyDto
-                        {
-                            RoomId = _currentMatch.RoomId,
-                            IsReady = true
-                        };
-                        await NetworkManager.Instance.SendAsync(Packet.Create(PacketType.PlayerReady, readyDto));
-
-                        // Gửi tín hiệu đồng bộ cho Client đối thủ (dự phòng trường hợp Server không broadcast GameStart)
                         var syncPlaced = new ChatMessageDto
                         {
                             Sender = PlayerProfile.Username ?? string.Empty,
@@ -231,7 +257,6 @@ namespace Battleship.Client
 
                     AddChatMessage("Hệ thống", "Đã gửi đội hình tàu. Đang chờ đối thủ xếp tàu...");
 
-                    // Nếu đối thủ đã xếp xong trước đó -> vào trận ngay
                     if (_enemyShipsPlaced)
                     {
                         StartMatchLocally();
@@ -245,7 +270,16 @@ namespace Battleship.Client
 
             // 3. Cập nhật tình trạng tàu khi có tàu bị bắn trúng / đánh chìm
             playerBoard.OnShipConditionUpdated += (ships) => UpdateAllShipsConditionUI(ships, isEnemy: false);
-            EnemyBoard.OnShipConditionUpdated += (ships) => UpdateAllShipsConditionUI(ships, isEnemy: true);
+            EnemyBoard.OnShipConditionUpdated += (ships) =>
+            {
+                UpdateAllShipsConditionUI(ships, isEnemy: true);
+
+                if (!IsOnlineMode && !_isGameOverHandled && ships != null && ships.Count > 0 &&
+                    ships.All(s => s.Size > 0 && s.HitCount >= s.Size))
+                {
+                    HandleGameOver(true, "Đã bắn chìm toàn bộ 5 tàu mục tiêu trong chế độ Test!");
+                }
+            };
 
             // 4. Cập nhật số viên đạn còn lại lên TableShots
             EnemyBoard.OnRemainingShotsChanged += (remainingShots) =>
@@ -253,12 +287,13 @@ namespace Battleship.Client
                 UpdateShotsUI(remainingShots);
             };
 
-            // 5. Chỉ tự đổi lượt cục bộ khi chơi Offline (Online do Server điều phối)
+            // 5. Khi bắn hết 5 phát ở chế độ Test -> nạp lại 5 phát tiếp theo
             EnemyBoard.OnTurnEnded += () =>
             {
-                if (!EnemyBoard.IsOnlineMode && CurrentState == GameTurnState.MyTurn)
+                if (!IsOnlineMode && !_isGameOverHandled && CurrentState == GameTurnState.MyTurn)
                 {
-                    SetTurnState(GameTurnState.EnemyTurn);
+                    AddChatMessage("Test", "Đã bắn hết 5 phát, nạp lại 5 phát tiếp theo.");
+                    SetTurnState(GameTurnState.MyTurn);
                 }
             };
 
@@ -311,8 +346,9 @@ namespace Battleship.Client
                     if (lblShots != null) lblShots.Text = "Your turn";
                     StartTurnTimer(TurnDurationSeconds);
 
-                    EnemyBoard.StartTurn();
-                    UpdateShotsUI(1);
+                    EnemyBoard.IsPlacementPhase = false;
+                    EnemyBoard.StartTurn(TurnDurationSeconds);
+                    UpdateShotsUI(5);
                     UpdateAllShipsConditionUI(EnemyBoard.PlayerShips, isEnemy: true);
                     break;
 
@@ -340,16 +376,43 @@ namespace Battleship.Client
             }
         }
 
+        private void StartMatchLocally(string serverFirstTurn = null, int? serverTimeLimit = null)
+        {
+            if (_isGameOverHandled) return;
+
+            if (serverTimeLimit.HasValue && serverTimeLimit.Value > 0)
+                TurnDurationSeconds = serverTimeLimit.Value;
+
+            bool isFirstTurn;
+            if (!string.IsNullOrWhiteSpace(serverFirstTurn))
+            {
+                isFirstTurn = string.Equals(serverFirstTurn, PlayerProfile.Username, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                isFirstTurn = _currentMatch != null && _currentMatch.IsHost;
+            }
+
+            if (!_matchStarted)
+            {
+                _matchStarted = true;
+                AddChatMessage("Hệ thống", isFirstTurn
+                    ? "Trận đấu bắt đầu! Bạn đi trước."
+                    : "Trận đấu bắt đầu! Lượt của đối thủ.");
+            }
+
+            SetTurnState(isFirstTurn ? GameTurnState.MyTurn : GameTurnState.EnemyTurn);
+        }
+
         // =========================================================
         // NHẬN PACKET TRẬN ĐẤU TỪ SERVER
         // =========================================================
         private void NetworkManager_OnPacketReceived(Packet packet)
         {
-            if (packet == null || this.IsDisposed) return;
+            if (!IsOnlineMode || packet == null || this.IsDisposed) return;
 
             switch (packet.Type)
             {
-                // 1. Trận đấu bắt đầu sau khi cả 2 xếp tàu xong
                 case PacketType.GameStart:
                     {
                         var gameStart = packet.DeserializePayload<GameStartDto>();
@@ -357,26 +420,19 @@ namespace Battleship.Client
 
                         SafeInvokeUI(() =>
                         {
-                            if (_isGameOverHandled) return;
+                            if (!string.IsNullOrWhiteSpace(gameStart.FirstTurnUsername) &&
+                                !string.Equals(gameStart.FirstTurnUsername, PlayerProfile.Username, StringComparison.OrdinalIgnoreCase) &&
+                                (string.IsNullOrWhiteSpace(_currentMatch.OpponentName) || _currentMatch.OpponentName == "Waiting for opponent..."))
+                            {
+                                _currentMatch.OpponentName = gameStart.FirstTurnUsername;
+                                if (lblEnemyName != null) lblEnemyName.Text = gameStart.FirstTurnUsername;
+                            }
 
-                            TurnDurationSeconds = gameStart.TimeLimitSeconds > 0 ? gameStart.TimeLimitSeconds : 30;
-                            EnemyBoard.MarkAllShipsReady();
-
-                            bool isFirstTurn = string.Equals(
-                                gameStart.FirstTurnUsername,
-                                PlayerProfile.Username,
-                                StringComparison.OrdinalIgnoreCase);
-
-                            AddChatMessage("Hệ thống", isFirstTurn
-                                ? "Trận đấu bắt đầu! Bạn đi trước."
-                                : $"Trận đấu bắt đầu! {gameStart.FirstTurnUsername} đi trước.");
-
-                            SetTurnState(isFirstTurn ? GameTurnState.MyTurn : GameTurnState.EnemyTurn);
+                            StartMatchLocally(gameStart.FirstTurnUsername, gameStart.TimeLimitSeconds);
                         });
                         break;
                     }
 
-                // 2. Kết quả từng phát bắn (của mình hoặc đối thủ)
                 case PacketType.ShotResult:
                     {
                         var result = packet.DeserializePayload<ShotResultDto>();
@@ -386,7 +442,6 @@ namespace Battleship.Client
                         break;
                     }
 
-                // 3. Server thông báo đổi lượt (bắn hụt hoặc hết giờ)
                 case PacketType.TurnChange:
                     {
                         var turnChanged = packet.DeserializePayload<TurnChangedDto>();
@@ -415,7 +470,6 @@ namespace Battleship.Client
                         break;
                     }
 
-                // 4. Kết thúc trận đấu (thắng / thua)
                 case PacketType.GameOver:
                     {
                         var gameOver = packet.DeserializePayload<GameOverDto>();
@@ -433,7 +487,6 @@ namespace Battleship.Client
                         break;
                     }
 
-                // 5. Đối thủ mất kết nối / thoát giữa trận
                 case PacketType.OpponentDisconnected:
                     {
                         SafeInvokeUI(() =>
@@ -443,18 +496,57 @@ namespace Battleship.Client
                         break;
                     }
 
-                // 6. Chat trong trận (lọc bỏ gói đồng bộ Ready của phòng chờ)
+                case PacketType.RoomUpdate:
+                    {
+                        var update = packet.DeserializePayload<RoomUpdateDto>();
+                        if (update?.Room == null || !IsCurrentRoom(update.Room.RoomId)) return;
+
+                        string myName = PlayerProfile.Username ?? string.Empty;
+                        string opponent = string.Equals(update.Room.HostName, myName, StringComparison.OrdinalIgnoreCase)
+                            ? update.Room.GuestName
+                            : update.Room.HostName;
+
+                        if (!string.IsNullOrWhiteSpace(opponent))
+                        {
+                            _currentMatch.OpponentName = opponent;
+                            SafeInvokeUI(() =>
+                            {
+                                if (lblEnemyName != null) lblEnemyName.Text = opponent;
+                            });
+                        }
+                        break;
+                    }
+
                 case PacketType.ChatMessage:
                     {
                         try
                         {
                             var chatMsg = packet.DeserializePayload<ChatMessageDto>();
-                            if (chatMsg != null &&
-                                !string.IsNullOrEmpty(chatMsg.Content) &&
-                                !chatMsg.Content.StartsWith("[SYS_READY:", StringComparison.Ordinal))
+                            if (chatMsg == null || string.IsNullOrEmpty(chatMsg.Content)) break;
+
+                            if (chatMsg.Content.StartsWith("[SYS_READY:", StringComparison.Ordinal))
+                                break;
+
+                            string shipPrefix = $"[SYS_SHIPS_READY:{_currentMatch?.RoomId}]:";
+                            if (chatMsg.Content.StartsWith(shipPrefix, StringComparison.Ordinal))
                             {
-                                AddChatMessage(chatMsg.Sender, chatMsg.Content);
+                                if (!string.Equals(chatMsg.Sender, PlayerProfile.Username, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    SafeInvokeUI(() =>
+                                    {
+                                        _enemyShipsPlaced = true;
+                                        AddChatMessage("Hệ thống", "Đối thủ đã xếp xong đội hình tàu.");
+
+                                        if (_myShipsPlaced)
+                                        {
+                                            StartMatchLocally();
+                                        }
+                                    });
+                                }
+                                break;
                             }
+
+                            AddChatMessage(chatMsg.Sender, chatMsg.Content);
                         }
                         catch (Exception ex)
                         {
@@ -463,10 +555,10 @@ namespace Battleship.Client
                         break;
                     }
 
-                // 7. Thông báo lỗi từ Server
                 case PacketType.Error:
                     {
                         var err = packet.DeserializePayload<ErrorDto>();
+                        SafeInvokeUI(() => EnemyBoard.ClearAllPendingShots());
                         if (err != null && !string.IsNullOrWhiteSpace(err.Message))
                         {
                             AddChatMessage("Hệ thống", err.Message);
@@ -489,6 +581,7 @@ namespace Battleship.Client
             {
                 if (isMyShot)
                 {
+                    EnemyBoard.CancelPendingShot(result.X, result.Y);
                     AddChatMessage("Hệ thống", "Tọa độ bắn không hợp lệ, hãy chọn ô khác.");
                 }
                 return;
@@ -505,7 +598,6 @@ namespace Battleship.Client
                     AddChatMessage("Hệ thống", $"Bạn đã đánh chìm tàu {result.SunkShipName} của đối thủ!");
                 }
 
-                // Kiểm tra thắng ngay khi 5 tàu địch đều đã chìm
                 if (EnemyBoard.PlayerShips.Count > 0 && EnemyBoard.PlayerShips.All(s => s.HitCount >= s.Size))
                 {
                     HandleGameOver(true, "Bạn đã đánh chìm toàn bộ hạm đội của đối thủ!");
@@ -521,7 +613,6 @@ namespace Battleship.Client
                     AddChatMessage("Hệ thống", $"Tàu {result.SunkShipName} của bạn đã bị đánh chìm!");
                 }
 
-                // Kiểm tra thua ngay khi 5 tàu của mình đều đã chìm
                 if (playerBoard.PlayerShips.Count > 0 && playerBoard.PlayerShips.All(s => s.IsPlaced && s.HitCount >= s.Size))
                 {
                     HandleGameOver(false, "Toàn bộ hạm đội của bạn đã bị đánh chìm!");
@@ -529,7 +620,6 @@ namespace Battleship.Client
                 }
             }
 
-            // Bắn trúng -> bắn tiếp; Bắn hụt -> đổi lượt theo NextTurnUsername từ Server
             if (!string.IsNullOrWhiteSpace(result.NextTurnUsername))
             {
                 bool nextIsMyTurn = string.Equals(
@@ -537,23 +627,14 @@ namespace Battleship.Client
                     PlayerProfile.Username,
                     StringComparison.OrdinalIgnoreCase);
 
-                SetTurnState(nextIsMyTurn ? GameTurnState.MyTurn : GameTurnState.EnemyTurn);
-            }
-        }
-
-        private void MarkEnemyShipSunkUI(string shipName)
-        {
-            TableLayoutPanel table = GetShipConditionTable(shipName, isEnemy: true);
-            if (table == null) return;
-
-            var orderedPics = table.Controls.OfType<PictureBox>()
-                                   .OrderBy(p => table.GetColumn(p))
-                                   .ThenBy(p => table.GetRow(p))
-                                   .ToList();
-
-            for (int i = 0; i < orderedPics.Count; i++)
-            {
-                UpdateCellStatus(orderedPics[i], "Damaged");
+                if (nextIsMyTurn && CurrentState != GameTurnState.MyTurn)
+                {
+                    SetTurnState(GameTurnState.MyTurn);
+                }
+                else if (!nextIsMyTurn && EnemyBoard.RemainingShots <= 0 && CurrentState != GameTurnState.EnemyTurn)
+                {
+                    SetTurnState(GameTurnState.EnemyTurn);
+                }
             }
         }
 
@@ -564,9 +645,6 @@ namespace Battleship.Client
 
             _connectionCheckTimer?.Stop();
             SetTurnState(GameTurnState.GameOver);
-
-            if (lblPlayerName != null) lblPlayerName.ForeColor = Color.White;
-            if (lblEnemyName != null) lblEnemyName.ForeColor = Color.White;
 
             if (lblShots != null)
             {
@@ -649,45 +727,6 @@ namespace Battleship.Client
             }
         }
 
-        private void UpdateSingleShipCondition(TableLayoutPanel table, ShipInfo ship, bool isEnemy)
-        {
-            if (table == null || ship == null) return;
-
-            var orderedPics = table.Controls.OfType<PictureBox>()
-                                   .OrderBy(p => table.GetColumn(p))
-                                   .ThenBy(p => table.GetRow(p))
-                                   .ToList();
-
-            if (isEnemy)
-            {
-                // Tàu địch: không hiển thị gì cho tới khi chìm hẳn mới hiện đỏ cả tàu
-                bool isSunk = ship.Size > 0 && ship.HitCount >= ship.Size;
-                string status = isSunk ? "Damaged" : "None";
-
-                for (int i = 0; i < orderedPics.Count; i++)
-                {
-                    UpdateCellStatus(orderedPics[i], status);
-                }
-                return;
-            }
-
-            // Tàu của mình: chưa đặt -> xám, đã đặt -> xanh lá, trúng đạn -> đỏ từ trái sang phải
-            for (int i = 0; i < orderedPics.Count; i++)
-            {
-                string status;
-                if (!ship.IsPlaced)
-                {
-                    status = "Used";
-                }
-                else
-                {
-                    status = (i < ship.HitCount) ? "Damaged" : "Undamaged";
-                }
-
-                UpdateCellStatus(orderedPics[i], status);
-            }
-        }
-
         private TableLayoutPanel GetShipConditionTable(string shipName, bool isEnemy)
         {
             if (isEnemy)
@@ -715,8 +754,47 @@ namespace Battleship.Client
             return null;
         }
 
-        private void UpdateSingleShipCondition(TableLayoutPanel table, bool isPlaced, int hitCount)
+        private void UpdateSingleShipCondition(TableLayoutPanel table, ShipInfo ship, bool isEnemy)
         {
+            if (table == null || ship == null) return;
+
+            var orderedPics = table.Controls.OfType<PictureBox>()
+                                   .OrderBy(p => table.GetColumn(p))
+                                   .ThenBy(p => table.GetRow(p))
+                                   .ToList();
+
+            if (isEnemy)
+            {
+                // Tàu địch: không hiển thị gì cho tới khi chìm hẳn mới hiện đỏ cả tàu
+                bool isSunk = ship.Size > 0 && ship.HitCount >= ship.Size;
+                string status = isSunk ? "Damaged" : "None";
+
+                for (int i = 0; i < orderedPics.Count; i++)
+                {
+                    UpdateCellStatus(orderedPics[i], status);
+                }
+                return;
+            }
+
+            for (int i = 0; i < orderedPics.Count; i++)
+            {
+                string status;
+                if (!ship.IsPlaced)
+                {
+                    status = "Used";
+                }
+                else
+                {
+                    status = (i < ship.HitCount) ? "Damaged" : "Undamaged";
+                }
+
+                UpdateCellStatus(orderedPics[i], status);
+            }
+        }
+
+        private void MarkEnemyShipSunkUI(string shipName)
+        {
+            TableLayoutPanel table = GetShipConditionTable(shipName, isEnemy: true);
             if (table == null) return;
 
             var orderedPics = table.Controls.OfType<PictureBox>()
@@ -726,17 +804,7 @@ namespace Battleship.Client
 
             for (int i = 0; i < orderedPics.Count; i++)
             {
-                string status;
-                if (!isPlaced)
-                {
-                    status = "Used";
-                }
-                else
-                {
-                    status = (i < hitCount) ? "Damaged" : "Undamaged";
-                }
-
-                UpdateCellStatus(orderedPics[i], status);
+                UpdateCellStatus(orderedPics[i], "Damaged");
             }
         }
 
@@ -761,6 +829,28 @@ namespace Battleship.Client
             }));
         }
 
+        private void SetupPlayerNames()
+        {
+            string myName = !string.IsNullOrWhiteSpace(PlayerProfile.Username)
+                ? PlayerProfile.Username
+                : "Player 1";
+
+            string enemyName = !string.IsNullOrWhiteSpace(_currentMatch?.OpponentName)
+                ? _currentMatch.OpponentName
+                : "Waiting for opponent...";
+
+            if (lblPlayerName != null)
+            {
+                lblPlayerName.Text = myName;
+                lblPlayerName.ForeColor = Color.White;
+            }
+
+            if (lblEnemyName != null)
+            {
+                lblEnemyName.Text = enemyName;
+                lblEnemyName.ForeColor = Color.White;
+            }
+        }
 
         private Image CreateCircleImage(Color color, int size)
         {
@@ -812,30 +902,28 @@ namespace Battleship.Client
         {
             TableLayoutPanel[] playerAndShotTables = new TableLayoutPanel[]
             {
-        TableShots,
-        tablePlayerConditionCarrier,
-        tablePlayerConditionSubmarine,
-        tablePlayerConditionBattleship,
-        tablePlayerConditionCruiser,
-        tablePlayerConditionDestroyer
+                TableShots,
+                tablePlayerConditionCarrier,
+                tablePlayerConditionSubmarine,
+                tablePlayerConditionBattleship,
+                tablePlayerConditionCruiser,
+                tablePlayerConditionDestroyer
             };
 
             TableLayoutPanel[] enemyConditionTables = new TableLayoutPanel[]
             {
-        tableEnemyConditionCarrier,
-        tableEnemyConditionSubmarine,
-        tableEnemyConditionBattleship,
-        tableEnemyConditionCrusier,
-        tableEnemyConditionDestroyer
+                tableEnemyConditionCarrier,
+                tableEnemyConditionSubmarine,
+                tableEnemyConditionBattleship,
+                tableEnemyConditionCrusier,
+                tableEnemyConditionDestroyer
             };
 
-            // Bảng đạn & bảng tàu của mình: khởi tạo chấm xám
             foreach (TableLayoutPanel table in playerAndShotTables)
             {
                 InitStatusTableCells(table, "Used");
             }
 
-            // Bảng tàu của địch: không hiển thị gì cả cho đến khi tàu chìm
             foreach (TableLayoutPanel table in enemyConditionTables)
             {
                 InitStatusTableCells(table, "None");
@@ -926,6 +1014,14 @@ namespace Battleship.Client
 
                 if (string.IsNullOrWhiteSpace(messageText)) return;
 
+                if (!IsOnlineMode)
+                {
+                    string localName = !string.IsNullOrWhiteSpace(PlayerProfile.Username) ? PlayerProfile.Username : "Tester";
+                    AddChatMessage(localName, messageText);
+                    boxChat.Clear();
+                    return;
+                }
+
                 if (NetworkManager.Instance == null || !NetworkManager.Instance.IsConnected)
                 {
                     AddChatMessage("Hệ thống", "Chưa kết nối đến máy chủ!");
@@ -1012,7 +1108,7 @@ namespace Battleship.Client
             _connectionCheckTimer?.Stop();
             _connectionCheckTimer?.Dispose();
 
-            if (NetworkManager.Instance != null)
+            if (IsOnlineMode && NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
 
@@ -1026,37 +1122,6 @@ namespace Battleship.Client
                     catch { }
                 }
             }
-        }
-
-        private void StartMatchLocally(string? serverFirstTurn = null, int? serverTimeLimit = null)
-        {
-            if (_isGameOverHandled) return;
-
-            if (serverTimeLimit.HasValue && serverTimeLimit.Value > 0)
-                TurnDurationSeconds = serverTimeLimit.Value;
-
-            EnemyBoard.MarkAllShipsReady();
-
-            bool isFirstTurn;
-            if (!string.IsNullOrWhiteSpace(serverFirstTurn))
-            {
-                isFirstTurn = string.Equals(serverFirstTurn, PlayerProfile.Username, StringComparison.OrdinalIgnoreCase);
-            }
-            else
-            {
-                // Mặc định Host đi trước nếu khởi động đồng bộ từ Client
-                isFirstTurn = _currentMatch != null && _currentMatch.IsHost;
-            }
-
-            if (!_matchStarted)
-            {
-                _matchStarted = true;
-                AddChatMessage("Hệ thống", isFirstTurn
-                    ? "Trận đấu bắt đầu! Bạn đi trước."
-                    : "Trận đấu bắt đầu! Lượt của đối thủ.");
-            }
-
-            SetTurnState(isFirstTurn ? GameTurnState.MyTurn : GameTurnState.EnemyTurn);
         }
 
         //----------------------------- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN -------------------------------------------------------
@@ -1079,16 +1144,11 @@ namespace Battleship.Client
         private void tableEnemyConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
         private void pnlPlayerBoard_Paint(object sender, PaintEventArgs e) { }
         private void tableLayoutPanel3_Paint(object sender, PaintEventArgs e) { }
-        private void label21_Click(object sender, PaintEventArgs e) { }
-        private void label22_Click(object sender, PaintEventArgs e) { }
+        private void label21_Click(object sender, EventArgs e) { }
+        private void label22_Click(object sender, EventArgs e) { }
         private void pnlPlayerFrameBoard_Paint(object sender, PaintEventArgs e) { }
-        private void lblPlayerName_Click(object sender, PaintEventArgs e) { }
+        private void lblPlayerName_Click(object sender, EventArgs e) { }
         private void button1_Click(object sender, EventArgs e) { }
         private void boxChat_TextChanged(object sender, EventArgs e) { }
-
-        private void lblPlayerName_Click(object sender, EventArgs e)
-        {
-
-        }
     }
 }

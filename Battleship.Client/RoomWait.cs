@@ -450,7 +450,7 @@ namespace Battleship.Client
             Control? parent = this.Parent;
             if (parent != null)
             {
-                frmMain.SwitchToGameScreen();
+                frmMain.SwitchToGameScreen(matchInfo);
                 parent.Controls.Remove(this);
             }
 
