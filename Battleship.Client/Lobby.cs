@@ -251,6 +251,7 @@ namespace Battleship.Client
             DeleteAccess();
 
             RoomWait pnlRoomWait = new RoomWait();
+            pnlRoomWait.SetAsMatchmaking(); // Chế độ tìm trận: cả 2 đều không có quyền Host
 
             int centerX = (this.Width - pnlRoomWait.Width) / 2;
             int centerY = (this.Height - pnlRoomWait.Height) / 2;
@@ -264,7 +265,6 @@ namespace Battleship.Client
             {
                 try
                 {
-                    // Bấm "Tìm phòng" = vào hàng đợi ghép trận, server ghép đủ 2 người sẽ tự tạo phòng
                     var packet = Packet.Create(PacketType.MatchmakingJoinRequest, new { });
                     await NetworkManager.Instance.SendAsync(packet);
                 }
@@ -285,6 +285,7 @@ namespace Battleship.Client
             DeleteAccess();
 
             RoomWait pnlRoomWait = new RoomWait();
+            pnlRoomWait.SetAsHost(); // Tạo phòng mới -> có quyền Host
 
             int centerX = (this.Width - pnlRoomWait.Width) / 2;
             int centerY = (this.Height - pnlRoomWait.Height) / 2;

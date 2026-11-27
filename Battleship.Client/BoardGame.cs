@@ -31,13 +31,30 @@ namespace Battleship.Client
 
     public class CellButton : Button
     {
-        public bool IsShot { get; set; } = false;   // Đã bị bắn chưa
-        public bool HasShip { get; set; } = false;  // Có tàu không
+        public bool IsShot { get; set; } = false;          // Đã bị bắn chưa
+        public bool IsPending { get; private set; } = false; // Đang gửi lên Server, chờ kết quả
+        public bool HasShip { get; set; } = false;         // Có tàu không
+
+        public void MarkPendingShot()
+        {
+            if (IsShot || IsPending) return;
+            IsPending = true;
+            this.Cursor = Cursors.WaitCursor;
+        }
+
+        // Hoàn tác nếu Server trả ShotResultDto.IsValid == false hoặc PacketType.Error
+        public void CancelPendingShot()
+        {
+            if (!IsPending || IsShot) return;
+            IsPending = false;
+            this.Cursor = Cursors.Hand;
+        }
 
         public void SetShotState(bool isHit)
         {
             if (IsShot) return;
 
+            IsPending = false;
             IsShot = true;
             HasShip = isHit;
 
@@ -54,6 +71,7 @@ namespace Battleship.Client
 
         public void ResetState()
         {
+            IsPending = false;
             IsShot = false;
             HasShip = false;
             this.BackColor = Color.Transparent;
@@ -65,13 +83,17 @@ namespace Battleship.Client
 
     public partial class BoardGame : UserControl
     {
+        public bool IsOnlineMode { get; set; } = true;
+        public bool IsWaitingShotResult { get; set; } = false;
+        public string CurrentRoomId { get; set; } = string.Empty;
+
         private CellButton[,] cells = new CellButton[10, 10];
         private Image waterTile;
         private bool isResizing = false;
         private Point currentHover = new Point(-1, -1);
 
         private Timer turnTimer;
-        private int secondsRemaining = 60;
+        private int secondsRemaining = 30;
         private bool _isEnemyBoard = false;
 
         public bool IsEnemyBoard
@@ -137,15 +159,17 @@ namespace Battleship.Client
             }
         }
 
-        public void StartTurn()
+        public void StartTurn(int durationSeconds = 30)
         {
             IsMyTurn = true;
+            IsWaitingShotResult = false;
             RemainingShots = 5;
-            secondsRemaining = 60;
+            secondsRemaining = durationSeconds > 0 ? durationSeconds : 30;
 
             OnRemainingShotsChanged?.Invoke(RemainingShots);
             OnTimerTick?.Invoke(secondsRemaining);
 
+            turnTimer.Stop();
             turnTimer.Start();
         }
 
@@ -153,6 +177,7 @@ namespace Battleship.Client
         {
             turnTimer.Stop();
             IsMyTurn = false;
+            IsWaitingShotResult = false;
             RemainingShots = 0;
 
             OnRemainingShotsChanged?.Invoke(RemainingShots);
@@ -262,25 +287,46 @@ namespace Battleship.Client
             if (IsEnemyBoard)
             {
                 if (e.Button != MouseButtons.Left) return;
-                if (btn.IsShot) return;
-                if (IsPlacementPhase || !IsMyTurn || RemainingShots <= 0) return;
+                if (btn.IsShot || btn.IsPending) return;
+                if (IsPlacementPhase || !IsMyTurn) return;
 
-                btn.SetShotState(btn.HasShip);
-                if (btn.HasShip)
+                if (IsOnlineMode)
                 {
-                    RegisterHitOnShip(col, row);
+                    if (IsWaitingShotResult || RemainingShots <= 0) return;
+
+                    if (NetworkManager.Instance == null || !NetworkManager.Instance.IsConnected || string.IsNullOrWhiteSpace(CurrentRoomId))
+                        return;
+
+                    IsWaitingShotResult = true;
+                    btn.MarkPendingShot();
+                    OnCellClicked?.Invoke(col, row);
+
+                    try
+                    {
+                        var shotDto = new FireShotDto
+                        {
+                            RoomId = CurrentRoomId,
+                            X = col,
+                            Y = row
+                        };
+                        await NetworkManager.Instance.SendAsync(Packet.Create(PacketType.FireShotRequest, shotDto));
+                    }
+                    catch
+                    {
+                        CancelPendingShot(col, row);
+                    }
+                    return;
                 }
 
+                // Chế độ Test offline
+                if (RemainingShots <= 0) return;
                 RemainingShots--;
                 OnRemainingShotsChanged?.Invoke(RemainingShots);
-
-                // TODO: Gửi tọa độ phát bắn (col, row) lên Server
+                btn.SetShotState(btn.HasShip);
+                if (btn.HasShip) RegisterHitOnShip(col, row);
                 OnCellClicked?.Invoke(col, row);
 
-                if (RemainingShots <= 0)
-                {
-                    EndTurn(isTimeout: false);
-                }
+                if (RemainingShots <= 0) EndTurn(isTimeout: false);
                 return;
             }
 
@@ -315,13 +361,9 @@ namespace Battleship.Client
                     if (SelectedShip == null)
                     {
                         IsPlacementPhase = false;
+                        tableGame.Invalidate();
                         MessageBox.Show("Đã bố trí xong hạm đội 5 tàu!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         OnAllShipsPlaced?.Invoke();
-
-                        if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
-                        {
-                            await SendMyShipsToServerAsync();
-                        }
                     }
                 }
 
@@ -344,6 +386,27 @@ namespace Battleship.Client
             if (IsEnemyBoard) return;
             currentHover = new Point(-1, -1);
             tableGame.Invalidate();
+        }
+
+        public void CancelPendingShot(int col, int row)
+        {
+            IsWaitingShotResult = false;
+            if (col >= 0 && col < 10 && row >= 0 && row < 10)
+            {
+                cells[col, row]?.CancelPendingShot();
+            }
+        }
+
+        public void ClearAllPendingShots()
+        {
+            IsWaitingShotResult = false;
+            for (int col = 0; col < 10; col++)
+            {
+                for (int row = 0; row < 10; row++)
+                {
+                    cells[col, row]?.CancelPendingShot();
+                }
+            }
         }
 
         private void tableGame_Paint(object sender, PaintEventArgs e)
@@ -449,55 +512,74 @@ namespace Battleship.Client
                 cells[col, row].BackgroundImage = null;
         }
 
-        // Gọi từ bên ngoài khi Server trả kết quả bắn
+        // Gọi khi Server trả kết quả bắn (hoặc địch bắn sang bảng mình)
         public void UpdateCellShot(int col, int row, bool isHit)
         {
+            IsWaitingShotResult = false;
             if (col < 0 || col >= 10 || row < 0 || row >= 10) return;
+
             if (!cells[col, row].IsShot)
             {
                 cells[col, row].SetShotState(isHit);
+
+                if (IsEnemyBoard && IsOnlineMode && RemainingShots > 0)
+                {
+                    RemainingShots--;
+                    OnRemainingShotsChanged?.Invoke(RemainingShots);
+                }
+
                 if (isHit) RegisterHitOnShip(col, row);
             }
         }
 
-        // Rải tàu ẩn ngẫu nhiên trên bảng địch để test khi chưa có Server
-        public void SetupDummyEnemyShips()
+        /// <summary>
+        /// Đặt cố định 5 tàu để Test (không ngẫu nhiên):
+        /// - horizontal = true : xếp ngang từ Cột 1 (X = 0), tàu đầu nằm trọn Hàng ngang 1 (Y = 0)
+        /// - horizontal = false: xếp dọc từ Hàng 1 (Y = 0), tàu đầu nằm trọn Cột dọc 1 (X = 0)
+        /// </summary>
+        public void PlaceFixedTestShips(bool horizontal = true)
         {
-            if (!IsEnemyBoard) return;
-            Random rand = new Random();
-
-            foreach (var ship in PlayerShips)
+            Array.Clear(BoardGrid, 0, BoardGrid.Length);
+            for (int c = 0; c < 10; c++)
             {
-                ship.OccupiedCells.Clear();
-                ship.HitCount = 0;
-                ship.IsPlaced = false;
-
-                bool placed = false;
-                while (!placed)
+                for (int r = 0; r < 10; r++)
                 {
-                    int col = rand.Next(10);
-                    int row = rand.Next(10);
-                    bool horiz = rand.Next(2) == 0;
-
-                    if (CanPlaceShip(col, row, ship.Size, horiz))
-                    {
-                        for (int i = 0; i < ship.Size; i++)
-                        {
-                            int c = col + (horiz ? i : 0);
-                            int r = row + (horiz ? 0 : i);
-                            BoardGrid[c, r] = 1;
-                            cells[c, r].HasShip = true;
-                            ship.OccupiedCells.Add(new Point(c, r));
-                        }
-                        ship.IsPlaced = true;
-                        placed = true;
-                    }
+                    cells[c, r]?.ResetState();
                 }
             }
+
+            if (PlayerShips == null || PlayerShips.Count == 0)
+            {
+                InitializeDefaultShips();
+            }
+
+            for (int index = 0; index < PlayerShips.Count; index++)
+            {
+                var ship = PlayerShips[index];
+                ship.OccupiedCells.Clear();
+                ship.HitCount = 0;
+                ship.IsPlaced = true;
+
+                for (int step = 0; step < ship.Size; step++)
+                {
+                    int x = horizontal ? step : index;
+                    int y = horizontal ? index : step;
+
+                    BoardGrid[x, y] = 1;
+                    cells[x, y].HasShip = true;
+                    ship.OccupiedCells.Add(new Point(x, y));
+                }
+            }
+
+            SelectedShip = null;
+            IsPlacementPhase = false;
+            tableGame.Invalidate();
         }
 
-        public async Task SendMyShipsToServerAsync()
+        public async Task SendMyShipsToServerAsync(string roomId)
         {
+            CurrentRoomId = roomId;
+            if (NetworkManager.Instance == null || !NetworkManager.Instance.IsConnected) return;
             var shipDtos = new List<ShipPlacementDto>();
 
             foreach (var ship in PlayerShips)
@@ -523,14 +605,70 @@ namespace Battleship.Client
                 });
             }
 
-            var placeShipsDto = new PlaceShipsDto { Ships = shipDtos };
-            var packet = new Packet
+            var placeShipsDto = new PlaceShipsDto
+            {
+                RoomId = roomId,
+                Ships = shipDtos
+            };
+            await NetworkManager.Instance.SendAsync(new Packet
             {
                 Type = PacketType.PlaceShipsRequest,
                 Payload = JsonSerializer.Serialize(placeShipsDto)
+            });
+            var readyDto = new PlayerReadyDto
+            {
+                RoomId = roomId,
+                IsReady = true
             };
+            await NetworkManager.Instance.SendAsync(new Packet
+            {
+                Type = PacketType.PlayerReady,
+                Payload = JsonSerializer.Serialize(readyDto)
+            });
+        }
 
-            await NetworkManager.Instance.SendAsync(packet);
+        public void ApplyEnemyShipHit(string shipName, bool isSunk = false)
+        {
+            if (string.IsNullOrEmpty(shipName)) return;
+
+            var ship = PlayerShips.FirstOrDefault(s =>
+                string.Equals(s.Name, shipName, StringComparison.OrdinalIgnoreCase));
+
+            if (ship != null)
+            {
+                ship.IsPlaced = true;
+                if (isSunk)
+                    ship.HitCount = ship.Size;
+                else if (ship.HitCount < ship.Size)
+                    ship.HitCount++;
+
+                OnShipConditionUpdated?.Invoke(PlayerShips);
+            }
+        }
+
+        public void MarkAllShipsReady()
+        {
+            foreach (var ship in PlayerShips)
+            {
+                ship.IsPlaced = true;
+                ship.HitCount = 0;
+            }
+            OnShipConditionUpdated?.Invoke(PlayerShips);
+        }
+
+        public void ApplyEnemyShipSunk(string sunkShipName)
+        {
+            if (string.IsNullOrWhiteSpace(sunkShipName)) return;
+
+            var ship = PlayerShips.FirstOrDefault(s =>
+                string.Equals(s.Name, sunkShipName, StringComparison.OrdinalIgnoreCase));
+
+            if (ship != null)
+            {
+                ship.IsPlaced = true;
+                ship.HitCount = ship.Size;
+                OnShipConditionUpdated?.Invoke(PlayerShips);
+            }
         }
     }
 }
