@@ -1,5 +1,6 @@
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Battleship.Shared;
@@ -78,11 +79,12 @@ namespace Battleship.Server.Handlers
                 .ToList();
 
             await session.SendAsync(
-                Packet.Create(PacketType.GetRoomListResponse,
-                new RoomListResponseDto
-                {
-                    Rooms = rooms
-                }));
+                Packet.Create(
+                    PacketType.GetRoomListResponse,
+                    new RoomListResponseDto
+                    {
+                        Rooms = rooms
+                    }));
         }
 
         // ============================================================
@@ -90,23 +92,28 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandleCreateRoomAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<CreateRoomDto>();
 
             string roomId =
                 dto != null && !string.IsNullOrWhiteSpace(dto.RoomId)
-                ? dto.RoomId
-                : Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper();
+                    ? dto.RoomId
+                    : Guid.NewGuid().ToString("N")
+                        .Substring(0, 6).ToUpper();
 
             var room = _roomManager.CreateRoom(roomId, session);
 
             await session.SendAsync(
-                Packet.Create(PacketType.RoomUpdate,
-                new RoomUpdateDto
-                {
-                    Room = room != null ? ToRoomInfoDto(room) : null!
-                }));
+                Packet.Create(
+                    PacketType.RoomUpdate,
+                    new RoomUpdateDto
+                    {
+                        Room = room != null
+                            ? ToRoomInfoDto(room)
+                            : null!
+                    }));
         }
 
         // ============================================================
@@ -114,23 +121,29 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandleJoinRoomAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<JoinRoomDto>();
 
-            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
+            if (dto == null ||
+                string.IsNullOrWhiteSpace(dto.RoomId))
             {
                 await session.SendAsync(
-                    Packet.Create(PacketType.JoinRoomResponse,
-                    new JoinRoomResponseDto
-                    {
-                        Success = false,
-                        Message = "Thiếu mã phòng."
-                    }));
+                    Packet.Create(
+                        PacketType.JoinRoomResponse,
+                        new JoinRoomResponseDto
+                        {
+                            Success = false,
+                            Message = "Thiếu mã phòng."
+                        }));
+
                 return;
             }
 
-            bool joined = _roomManager.JoinRoom(dto.RoomId, session);
+            bool joined = _roomManager.JoinRoom(
+                dto.RoomId,
+                session);
 
             var room = joined
                 ? _roomManager.GetRoom(dto.RoomId)
@@ -138,25 +151,32 @@ namespace Battleship.Server.Handlers
 
             var updateDto = new RoomUpdateDto
             {
-                Room = room != null ? ToRoomInfoDto(room) : null!
+                Room = room != null
+                    ? ToRoomInfoDto(room)
+                    : null!
             };
 
             await session.SendAsync(
-                Packet.Create(PacketType.JoinRoomResponse,
-                new JoinRoomResponseDto
-                {
-                    Success = joined && room != null,
-                    Message = joined && room != null
-                        ? string.Empty
-                        : "Không vào được phòng: phòng không tồn tại hoặc đã đầy.",
-                    Room = updateDto.Room
-                }));
+                Packet.Create(
+                    PacketType.JoinRoomResponse,
+                    new JoinRoomResponseDto
+                    {
+                        Success = joined && room != null,
+
+                        Message = joined && room != null
+                            ? string.Empty
+                            : "Không vào được phòng: phòng không tồn tại hoặc đã đầy.",
+
+                        Room = updateDto.Room
+                    }));
 
             // Cập nhật phòng cho Host.
             if (joined && room != null)
             {
                 await room.Host.SendAsync(
-                    Packet.Create(PacketType.RoomUpdate, updateDto));
+                    Packet.Create(
+                        PacketType.RoomUpdate,
+                        updateDto));
             }
         }
 
@@ -165,15 +185,20 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandleLeaveRoomAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<LeaveRoomDto>();
 
-            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
+            if (dto == null ||
+                string.IsNullOrWhiteSpace(dto.RoomId))
+            {
                 return;
+            }
 
             await ProcessPlayerLeaveOrDisconnectAsync(
-                session, dto.RoomId);
+                session,
+                dto.RoomId);
         }
 
         // ============================================================
@@ -181,12 +206,16 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandleKickPlayerAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<KickPlayerDto>();
 
-            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
+            if (dto == null ||
+                string.IsNullOrWhiteSpace(dto.RoomId))
+            {
                 return;
+            }
 
             var room = _roomManager.GetRoom(dto.RoomId);
 
@@ -196,23 +225,30 @@ namespace Battleship.Server.Handlers
             var kickedPlayer = room.Player2;
 
             bool kicked = _roomManager.KickPlayer(
-                dto.RoomId, session, kickedPlayer);
+                dto.RoomId,
+                session,
+                kickedPlayer);
 
             if (!kicked)
                 return;
 
             // Thông báo người bị Kick.
             await kickedPlayer.SendAsync(
-                Packet.Create(PacketType.KickedFromRoom,
-                new RoomUpdateDto { Room = null! }));
+                Packet.Create(
+                    PacketType.KickedFromRoom,
+                    new RoomUpdateDto
+                    {
+                        Room = null!
+                    }));
 
             // Cập nhật lại phòng cho Host.
             await room.Host.SendAsync(
-                Packet.Create(PacketType.RoomUpdate,
-                new RoomUpdateDto
-                {
-                    Room = ToRoomInfoDto(room)
-                }));
+                Packet.Create(
+                    PacketType.RoomUpdate,
+                    new RoomUpdateDto
+                    {
+                        Room = ToRoomInfoDto(room)
+                    }));
         }
 
         // ============================================================
@@ -220,14 +256,16 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandlePlaceShipsAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<PlaceShipsDto>();
 
             if (dto == null)
                 return;
 
-            // Client có thể không gửi RoomId, khi đó tìm phòng theo người gửi.
+            // Client có thể không gửi RoomId,
+            // khi đó tìm phòng theo người gửi.
             var room = !string.IsNullOrWhiteSpace(dto.RoomId)
                 ? _roomManager.GetRoom(dto.RoomId)
                 : _roomManager.FindRoomBySession(session);
@@ -247,10 +285,13 @@ namespace Battleship.Server.Handlers
                      room.State == RoomState.ReadyCheck))
                 {
                     placedOk = board.TryPlaceShips(
-                        dto.Ships, out errorMessage);
+                        dto.Ships,
+                        out errorMessage);
 
                     if (placedOk)
+                    {
                         board.IsReady = false;
+                    }
                 }
             }
 
@@ -268,12 +309,16 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandlePlayerReadyAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<PlayerReadyDto>();
 
-            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
+            if (dto == null ||
+                string.IsNullOrWhiteSpace(dto.RoomId))
+            {
                 return;
+            }
 
             var room = _roomManager.GetRoom(dto.RoomId);
 
@@ -294,6 +339,7 @@ namespace Battleship.Server.Handlers
                 {
                     Console.WriteLine(
                         $"[TurnEngine] {session.SessionId} chưa đặt tàu.");
+
                     return;
                 }
 
@@ -311,6 +357,7 @@ namespace Battleship.Server.Handlers
                     room.CurrentTurnSessionId = room.Host.SessionId;
 
                     firstTurnUsername = GetDisplayName(room.Host);
+
                     startMatch = true;
 
                     // Khởi động Timer 30 giây đầu tiên.
@@ -343,6 +390,7 @@ namespace Battleship.Server.Handlers
 
                 await room.Host.SendAsync(gameStartPacket);
                 await room.Player2.SendAsync(gameStartPacket);
+
                 await room.Host.SendAsync(startPacket);
                 await room.Player2.SendAsync(startPacket);
 
@@ -357,12 +405,16 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task HandleFireShotAsync(
-            ClientSession session, Packet packet)
+            ClientSession session,
+            Packet packet)
         {
             var dto = packet.DeserializePayload<FireShotDto>();
 
-            if (dto == null || string.IsNullOrWhiteSpace(dto.RoomId))
+            if (dto == null ||
+                string.IsNullOrWhiteSpace(dto.RoomId))
+            {
                 return;
+            }
 
             var room = _roomManager.GetRoom(dto.RoomId);
 
@@ -373,6 +425,8 @@ namespace Battleship.Server.Handlers
             TurnChangedDto? turnChanged = null;
             GameOverDto? gameOver = null;
 
+            IReadOnlyList<ShotRecord> shotsSnapshot = Array.Empty<ShotRecord>();
+
             ClientSession? hostSession = null;
             ClientSession? player2Session = null;
 
@@ -381,17 +435,21 @@ namespace Battleship.Server.Handlers
                 // Chỉ được bắn khi trận đấu đang diễn ra.
                 if (room.State != RoomState.TurnBasedPlay ||
                     room.Player2 == null)
+                {
                     return;
+                }
 
                 // Kiểm tra đúng lượt người chơi.
                 if (room.CurrentTurnSessionId != session.SessionId)
                 {
                     Console.WriteLine(
                         $"[TurnEngine] {session.SessionId} bắn sai lượt.");
+
                     return;
                 }
 
                 var opponent = room.GetOpponent(session);
+
                 var opponentBoard = room.GetOpponentBoard(session);
 
                 if (opponent == null || opponentBoard == null)
@@ -405,6 +463,7 @@ namespace Battleship.Server.Handlers
                     opponentBoard.ProcessShot(dto.X, dto.Y);
 
                 string shooterName = GetDisplayName(session);
+
                 string opponentName = GetDisplayName(opponent);
 
                 // ----------------------------------------------------
@@ -425,47 +484,89 @@ namespace Battleship.Server.Handlers
                         NextTurnUsername = shooterName
                     };
                 }
-
-                // ----------------------------------------------------
-                // 9.2. BẮN TRÚNG
-                // ----------------------------------------------------
-
-                else if (isHit)
+                else
                 {
-                    // Kiểm tra toàn bộ tàu đối phương đã chìm chưa.
-                    if (opponentBoard.AllShipsSunk)
+                    // Ghi nhận lịch sử phát bắn hợp lệ (Mục 4.5).
+                    room.ShotHistory.Add(
+                        new ShotRecord(
+                            shooterName,
+                            dto.X,
+                            dto.Y,
+                            isHit,
+                            DateTime.UtcNow));
+
+                    // ------------------------------------------------
+                    // 9.2. BẮN TRÚNG
+                    // ------------------------------------------------
+
+                    if (isHit)
                     {
-                        // Dừng Timer và kết thúc trận đấu.
-                        room.StopTurnTimer();
-
-                        room.State = RoomState.GameOver;
-                        room.CurrentTurnSessionId = null;
-
-                        shotResult = new ShotResultDto
+                        // Kiểm tra toàn bộ tàu đối phương đã chìm chưa.
+                        if (opponentBoard.AllShipsSunk)
                         {
-                            RoomId = room.RoomId,
-                            ShooterUsername = shooterName,
-                            X = dto.X,
-                            Y = dto.Y,
-                            IsValid = true,
-                            IsHit = true,
-                            IsSunk = isSunk,
-                            SunkShipName = sunkShipName,
-                            NextTurnUsername = string.Empty
-                        };
+                            // Dừng Timer và kết thúc trận đấu.
+                            room.StopTurnTimer();
 
-                        gameOver = new GameOverDto
+                            room.State = RoomState.GameOver;
+
+                            room.CurrentTurnSessionId = null;
+
+                            shotsSnapshot = room.ShotHistory.ToList();
+
+                            shotResult = new ShotResultDto
+                            {
+                                RoomId = room.RoomId,
+                                ShooterUsername = shooterName,
+                                X = dto.X,
+                                Y = dto.Y,
+                                IsValid = true,
+                                IsHit = true,
+                                IsSunk = isSunk,
+                                SunkShipName = sunkShipName,
+                                NextTurnUsername = string.Empty
+                            };
+
+                            gameOver = new GameOverDto
+                            {
+                                RoomId = room.RoomId,
+                                WinnerUsername = shooterName,
+                                LoserUsername = opponentName,
+                                Reason = "AllShipsSunk"
+                            };
+                        }
+                        else
                         {
-                            RoomId = room.RoomId,
-                            WinnerUsername = shooterName,
-                            LoserUsername = opponentName,
-                            Reason = "AllShipsSunk"
-                        };
+                            // Bắn trúng nhưng chưa chìm hết tàu:
+                            // Giữ nguyên lượt cho người vừa bắn.
+                            room.StartOrResetTurnTimer(
+                                HandleTurnTimeoutAsync,
+                                TurnTimeLimitSeconds);
+
+                            shotResult = new ShotResultDto
+                            {
+                                RoomId = room.RoomId,
+                                ShooterUsername = shooterName,
+                                X = dto.X,
+                                Y = dto.Y,
+                                IsValid = true,
+                                IsHit = true,
+                                IsSunk = isSunk,
+                                SunkShipName = sunkShipName,
+                                NextTurnUsername = shooterName
+                            };
+                        }
                     }
+
+                    // ------------------------------------------------
+                    // 9.3. BẮN HỤT
+                    // ------------------------------------------------
+
                     else
                     {
-                        // Bắn trúng nhưng chưa chìm hết tàu:
-                        // Giữ nguyên lượt cho người vừa bắn.
+                        // Chuyển lượt sang đối thủ.
+                        room.CurrentTurnSessionId = opponent.SessionId;
+
+                        // Đặt lại Timer 30 giây.
                         room.StartOrResetTurnTimer(
                             HandleTurnTimeoutAsync,
                             TurnTimeLimitSeconds);
@@ -477,47 +578,19 @@ namespace Battleship.Server.Handlers
                             X = dto.X,
                             Y = dto.Y,
                             IsValid = true,
-                            IsHit = true,
-                            IsSunk = isSunk,
-                            SunkShipName = sunkShipName,
-                            NextTurnUsername = shooterName
+                            IsHit = false,
+                            IsSunk = false,
+                            NextTurnUsername = opponentName
+                        };
+
+                        turnChanged = new TurnChangedDto
+                        {
+                            RoomId = room.RoomId,
+                            CurrentTurnUsername = opponentName,
+                            TimeLimitSeconds = TurnTimeLimitSeconds,
+                            Reason = "Miss"
                         };
                     }
-                }
-
-                // ----------------------------------------------------
-                // 9.3. BẮN HỤT
-                // ----------------------------------------------------
-
-                else
-                {
-                    // Chuyển lượt sang đối thủ.
-                    room.CurrentTurnSessionId = opponent.SessionId;
-
-                    // Đặt lại Timer 30 giây.
-                    room.StartOrResetTurnTimer(
-                        HandleTurnTimeoutAsync,
-                        TurnTimeLimitSeconds);
-
-                    shotResult = new ShotResultDto
-                    {
-                        RoomId = room.RoomId,
-                        ShooterUsername = shooterName,
-                        X = dto.X,
-                        Y = dto.Y,
-                        IsValid = true,
-                        IsHit = false,
-                        IsSunk = false,
-                        NextTurnUsername = opponentName
-                    };
-
-                    turnChanged = new TurnChangedDto
-                    {
-                        RoomId = room.RoomId,
-                        CurrentTurnUsername = opponentName,
-                        TimeLimitSeconds = TurnTimeLimitSeconds,
-                        Reason = "Miss"
-                    };
                 }
             }
 
@@ -528,7 +601,10 @@ namespace Battleship.Server.Handlers
             if (shotResult != null && !shotResult.IsValid)
             {
                 await session.SendAsync(
-                    Packet.Create(PacketType.ShotResult, shotResult));
+                    Packet.Create(
+                        PacketType.ShotResult,
+                        shotResult));
+
                 return;
             }
 
@@ -541,7 +617,8 @@ namespace Battleship.Server.Handlers
                 player2Session != null)
             {
                 var shotPacket = Packet.Create(
-                    PacketType.ShotResult, shotResult);
+                    PacketType.ShotResult,
+                    shotResult);
 
                 await hostSession.SendAsync(shotPacket);
                 await player2Session.SendAsync(shotPacket);
@@ -556,7 +633,8 @@ namespace Battleship.Server.Handlers
                 player2Session != null)
             {
                 var turnPacket = Packet.Create(
-                    PacketType.TurnChange, turnChanged);
+                    PacketType.TurnChange,
+                    turnChanged);
 
                 await hostSession.SendAsync(turnPacket);
                 await player2Session.SendAsync(turnPacket);
@@ -571,7 +649,8 @@ namespace Battleship.Server.Handlers
                 player2Session != null)
             {
                 var overPacket = Packet.Create(
-                    PacketType.GameOver, gameOver);
+                    PacketType.GameOver,
+                    gameOver);
 
                 await hostSession.SendAsync(overPacket);
                 await player2Session.SendAsync(overPacket);
@@ -580,8 +659,11 @@ namespace Battleship.Server.Handlers
                     $"[TurnEngine] Phòng {room.RoomId} kết thúc. " +
                     $"Người thắng: {gameOver.WinnerUsername}");
 
-                // Gọi sự kiện lưu lịch sử trận đấu.
-                await _roomManager.RaiseMatchFinishedAsync(gameOver);
+                // Gọi sự kiện lưu lịch sử trận đấu
+                // kèm danh sách phát bắn.
+                await _roomManager.RaiseMatchFinishedAsync(
+                    gameOver,
+                    shotsSnapshot);
             }
         }
 
@@ -600,13 +682,15 @@ namespace Battleship.Server.Handlers
             {
                 if (room.State != RoomState.TurnBasedPlay ||
                     room.Player2 == null)
+                {
                     return;
+                }
 
                 // Xác định người chơi tiếp theo.
                 var nextPlayer =
                     room.CurrentTurnSessionId == room.Host.SessionId
-                    ? room.Player2
-                    : room.Host;
+                        ? room.Player2
+                        : room.Host;
 
                 room.CurrentTurnSessionId = nextPlayer.SessionId;
 
@@ -634,7 +718,8 @@ namespace Battleship.Server.Handlers
                 player2Session != null)
             {
                 var timeoutPacket = Packet.Create(
-                    PacketType.TurnChange, turnChanged);
+                    PacketType.TurnChange,
+                    turnChanged);
 
                 await hostSession.SendAsync(timeoutPacket);
                 await player2Session.SendAsync(timeoutPacket);
@@ -658,7 +743,8 @@ namespace Battleship.Server.Handlers
             if (room != null)
             {
                 await ProcessPlayerLeaveOrDisconnectAsync(
-                    session, room.RoomId);
+                    session,
+                    room.RoomId);
             }
         }
 
@@ -667,7 +753,8 @@ namespace Battleship.Server.Handlers
         // ============================================================
 
         private async Task ProcessPlayerLeaveOrDisconnectAsync(
-            ClientSession session, string roomId)
+            ClientSession session,
+            string roomId)
         {
             var room = _roomManager.GetRoom(roomId);
 
@@ -675,7 +762,10 @@ namespace Battleship.Server.Handlers
                 return;
 
             ClientSession? remainingPlayer = null;
+
             GameOverDto? forfeitGameOver = null;
+
+            IReadOnlyList<ShotRecord> shotsSnapshot = Array.Empty<ShotRecord>();
 
             lock (room.RoomLock)
             {
@@ -690,7 +780,10 @@ namespace Battleship.Server.Handlers
                     room.StopTurnTimer();
 
                     room.State = RoomState.GameOver;
+
                     room.CurrentTurnSessionId = null;
+
+                    shotsSnapshot = room.ShotHistory.ToList();
 
                     forfeitGameOver = new GameOverDto
                     {
@@ -717,11 +810,15 @@ namespace Battleship.Server.Handlers
             {
                 // Thông báo chiến thắng cho người còn lại.
                 await remainingPlayer.SendAsync(
-                    Packet.Create(PacketType.GameOver, forfeitGameOver));
+                    Packet.Create(
+                        PacketType.GameOver,
+                        forfeitGameOver));
 
-                // Lưu lịch sử trận đấu.
+                // Lưu lịch sử trận đấu
+                // kèm danh sách phát bắn.
                 await _roomManager.RaiseMatchFinishedAsync(
-                    forfeitGameOver);
+                    forfeitGameOver,
+                    shotsSnapshot);
 
                 // Xóa phòng sau khi kết thúc trận đấu.
                 _roomManager.RemoveRoom(roomId);
@@ -750,7 +847,9 @@ namespace Battleship.Server.Handlers
                 };
 
                 await remainingPlayer.SendAsync(
-                    Packet.Create(PacketType.RoomUpdate, updateDto));
+                    Packet.Create(
+                        PacketType.RoomUpdate,
+                        updateDto));
             }
         }
 
@@ -774,6 +873,7 @@ namespace Battleship.Server.Handlers
             return new RoomInfoDto
             {
                 RoomId = room.RoomId,
+
                 RoomName = room.RoomId,
 
                 HostName = room.Host.Username ?? room.Host.SessionId,

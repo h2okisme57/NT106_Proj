@@ -94,11 +94,11 @@
             // lblBattleshiptxt
             // 
             lblBattleshiptxt.BackColor = Color.Transparent;
-            lblBattleshiptxt.Font = new Font("Segoe UI", 30F);
+            lblBattleshiptxt.Font = new Font("Segoe UI", 48F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblBattleshiptxt.ForeColor = Color.Navy;
-            lblBattleshiptxt.Location = new Point(287, 24);
+            lblBattleshiptxt.Location = new Point(0, 0);
             lblBattleshiptxt.Name = "lblBattleshiptxt";
-            lblBattleshiptxt.Size = new Size(422, 155);
+            lblBattleshiptxt.Size = new Size(978, 318);
             lblBattleshiptxt.TabIndex = 5;
             lblBattleshiptxt.Text = "BATTLESHIP";
             lblBattleshiptxt.TextAlign = ContentAlignment.MiddleCenter;

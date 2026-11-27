@@ -1,8 +1,11 @@
-
+using Battleship.Client.Models;
 using Battleship.Server.Handlers;
+using Battleship.Server.Models;
 using Battleship.Shared;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -123,10 +126,85 @@ public class TcpServer
             PacketType.FireShotRequest,
             _roomHandler);
 
+        // Đức - Heartbeat Ping/Pong
+        var heartbeatHandler = new HeartbeatHandler();
+        _router.Register(PacketType.Ping, heartbeatHandler);
+        _router.Register(PacketType.Pong, heartbeatHandler);
+
         // ========================================================
-        // Dũng - Match History
-        // TODO: Đăng ký sự kiện lưu lịch sử khi hoàn thành DB.
+        // Dũng - Match History & Win/Loss Stats
         // ========================================================
+        _roomManager.OnMatchFinished += HandleMatchFinishedAsync;
+    }
+
+    private async Task HandleMatchFinishedAsync(
+        GameOverDto gameOver,
+        IReadOnlyList<ShotRecord> shots)
+    {
+        try
+        {
+            using var db = new AppDbContext();
+
+            var winner = !string.IsNullOrWhiteSpace(gameOver.WinnerUsername)
+                ? await db.Users.FirstOrDefaultAsync(u => u.Username == gameOver.WinnerUsername)
+                : null;
+
+            var loser = !string.IsNullOrWhiteSpace(gameOver.LoserUsername)
+                ? await db.Users.FirstOrDefaultAsync(u => u.Username == gameOver.LoserUsername)
+                : null;
+
+            if (winner != null)
+            {
+                winner.Wins += 1;
+                winner.Score += 10;
+            }
+
+            if (loser != null)
+            {
+                loser.Losses += 1;
+            }
+
+            if (winner != null && loser != null)
+            {
+                var match = new Match
+                {
+                    Player1Id = winner.Id,
+                    Player2Id = loser.Id,
+                    WinnerId = winner.Id,
+                    StartTime = shots.Count > 0 ? shots[0].FiredAtUtc : DateTime.Now,
+                    EndTime = DateTime.Now,
+                    MatchDetails = new List<MatchDetail>()
+                };
+
+                foreach (var shot in shots)
+                {
+                    string? playerId = shot.ShooterUsername == winner.Username
+                        ? winner.Id
+                        : (shot.ShooterUsername == loser.Username ? loser.Id : null);
+
+                    if (playerId == null) continue;
+
+                    match.MatchDetails.Add(new MatchDetail
+                    {
+                        PlayerId = playerId,
+                        X_Coordinate = shot.X,
+                        Y_Coordinate = shot.Y,
+                        IsHit = shot.IsHit,
+                        TurnTime = shot.FiredAtUtc
+                    });
+                }
+
+                db.Matches.Add(match);
+            }
+
+            await db.SaveChangesAsync();
+            Console.WriteLine(
+                $"[DB] Đã lưu kết quả trận {gameOver.RoomId}: Thắng={gameOver.WinnerUsername}, Thua={gameOver.LoserUsername}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Lỗi cập nhật thắng/thua và lịch sử trận đấu: {ex.Message}");
+        }
     }
 
     // ============================================================
@@ -143,6 +221,9 @@ public class TcpServer
 
         // Worker ghép cặp chạy nền.
         _ = _matchmaking.RunAsync(_cts.Token);
+
+        // Worker kiểm tra kết nối Heartbeat (5s gửi Ping, 15s timeout).
+        _ = RunHeartbeatLoopAsync(_cts.Token);
 
         try
         {
@@ -259,6 +340,43 @@ public class TcpServer
         {
             Console.WriteLine(
                 $"[TcpServer] Lỗi xử lý Room disconnect: {ex.Message}");
+        }
+    }
+
+    // ============================================================
+    // HEARTBEAT PING/PONG (5S GỬI PING, 15S TIMEOUT)
+    // ============================================================
+
+    private async Task RunHeartbeatLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        var pingPacket = new Packet { Type = PacketType.Ping };
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var nowUtc = DateTime.UtcNow;
+
+                foreach (var session in _sessions.Values)
+                {
+                    // Bỏ qua các session đang đứng ở màn hình Login chưa đăng nhập
+                    if (!session.IsLoggedIn)
+                        continue;
+
+                    if ((nowUtc - session.LastPongUtc).TotalSeconds > 15)
+                    {
+                        session.ForceDisconnect("Heartbeat timeout > 15s");
+                        continue;
+                    }
+
+                    _ = session.SendAsync(pingPacket);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("[TcpServer] Đã dừng Heartbeat worker.");
         }
     }
 

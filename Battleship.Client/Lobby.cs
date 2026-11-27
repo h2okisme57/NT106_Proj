@@ -1,4 +1,4 @@
-﻿using Battleship.Shared;
+using Battleship.Shared;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Drawing.Drawing2D;
 
 namespace Battleship.Client
 {
@@ -19,27 +20,51 @@ namespace Battleship.Client
         private Profile pnlProfile;
         private FlowLayoutPanel chatPanel;
 
+
+        // màu cho logo Battleship
+        private Font _logoFont;
+
+        private static readonly Color LogoTop = Color.FromArgb(255, 210, 76);    // #FFD24C
+        private static readonly Color LogoBottom = Color.FromArgb(232, 59, 59);  // #E83B3B
+        private static readonly Color LogoExtrude = Color.FromArgb(122, 20, 34); // #7A1422
+        private static readonly Color LogoOutline = Color.FromArgb(8, 14, 28);   // #080E1C
+
+        private static readonly Size LockedSize = new Size(978, 641);
+
         public Lobby()
         {
             InitializeComponent();
+
+            // Tắt tự động co giãn theo DPI/Font của Windows
+            this.AutoScaleMode = AutoScaleMode.None;
+            this.Dock = DockStyle.None;
+            this.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // Khóa cứng kích thước UserControl
+            this.MinimumSize = LockedSize;
+            this.MaximumSize = LockedSize;
+            this.Size = LockedSize;
+
+            this.DoubleBuffered = true;
+            this.SetStyle(ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+
             this.Load += Lobby_Load;
             boxChat.KeyDown += boxChat_KeyDown;
         }
 
         private void Lobby_Load(object sender, EventArgs e)
         {
+            Theme.ApplyRetroFont(this);
             boxChat.BorderStyle = BorderStyle.None;
             CreateTransparentChatBox();
 
             Color textColorBtn = ColorTranslator.FromHtml("#F4D35E");
-            Color textColorLogo = ColorTranslator.FromHtml("#8B1E2D");
+            _logoFont = FontManager.GetFont(40f, FontStyle.Bold);
 
             if (lblBattleshiptxt != null)
             {
-                lblBattleshiptxt.UseCompatibleTextRendering = true;
-                lblBattleshiptxt.Font = FontManager.GetFont(24f, FontStyle.Bold);
-                lblBattleshiptxt.BackColor = Color.Transparent;
-                lblBattleshiptxt.ForeColor = textColorLogo;
+                lblBattleshiptxt.Font = _logoFont;
+                lblBattleshiptxt.Visible = false;
             }
 
             foreach (Control ctrl in this.Controls)
@@ -134,6 +159,7 @@ namespace Battleship.Client
             {
                 Label msgLabel = new Label();
                 msgLabel.Text = $"[{sender}]: {content}";
+                msgLabel.Font = FontManager.GetFont(8.5f, FontStyle.Regular);
                 msgLabel.BackColor = Color.Transparent;
                 msgLabel.ForeColor = Color.White;
                 msgLabel.AutoSize = true;
@@ -251,6 +277,7 @@ namespace Battleship.Client
             DeleteAccess();
 
             RoomWait pnlRoomWait = new RoomWait();
+            pnlRoomWait.SetAsMatchmaking(); // Chế độ tìm trận: cả 2 đều không có quyền Host
 
             int centerX = (this.Width - pnlRoomWait.Width) / 2;
             int centerY = (this.Height - pnlRoomWait.Height) / 2;
@@ -264,7 +291,6 @@ namespace Battleship.Client
             {
                 try
                 {
-                    // Bấm "Tìm phòng" = vào hàng đợi ghép trận, server ghép đủ 2 người sẽ tự tạo phòng
                     var packet = Packet.Create(PacketType.MatchmakingJoinRequest, new { });
                     await NetworkManager.Instance.SendAsync(packet);
                 }
@@ -285,6 +311,7 @@ namespace Battleship.Client
             DeleteAccess();
 
             RoomWait pnlRoomWait = new RoomWait();
+            pnlRoomWait.SetAsHost(); // Tạo phòng mới -> có quyền Host
 
             int centerX = (this.Width - pnlRoomWait.Width) / 2;
             int centerY = (this.Height - pnlRoomWait.Height) / 2;
@@ -387,6 +414,117 @@ namespace Battleship.Client
             {
                 chatPanel.Visible = false;
             }
+        }
+
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            DrawBattleshipLogo(e.Graphics);
+        }
+
+        private void DrawBattleshipLogo(Graphics g)
+        {
+            if (lblBattleshiptxt == null || _logoFont == null || string.IsNullOrWhiteSpace(lblBattleshiptxt.Text))
+                return;
+
+            GraphicsState state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            using (var path = new GraphicsPath())
+            using (var sf = CreateStringFormat(lblBattleshiptxt.TextAlign))
+            {
+                // Đổi cỡ chữ từ pt sang px để GraphicsPath khớp kích thước với Label gốc
+                float emSize = g.DpiY * _logoFont.SizeInPoints / 72f;
+                RectangleF layoutRect = lblBattleshiptxt.Bounds;
+
+                path.AddString(lblBattleshiptxt.Text, _logoFont.FontFamily, (int)_logoFont.Style, emSize, layoutRect, sf);
+
+                RectangleF bounds = path.GetBounds();
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    g.Restore(state);
+                    return;
+                }
+
+                // 1. Bóng đổ mềm tách logo khỏi mảng mây sáng
+                using (var shadowPath = (GraphicsPath)path.Clone())
+                using (var shadowMatrix = new Matrix())
+                using (var shadowBrush = new SolidBrush(Color.FromArgb(145, 2, 8, 20)))
+                {
+                    shadowMatrix.Translate(4, 10);
+                    shadowPath.Transform(shadowMatrix);
+                    g.FillPath(shadowBrush, shadowPath);
+                }
+
+                // 2. Khối nổi 3D dày 5px kèm viền xanh đen
+                int extrudeDepth = 5;
+                using (var outlinePen = new Pen(LogoOutline, 6f) { LineJoin = LineJoin.Round })
+                using (var extrudeBrush = new SolidBrush(LogoExtrude))
+                {
+                    for (int i = extrudeDepth; i >= 1; i--)
+                    {
+                        using (var layer = (GraphicsPath)path.Clone())
+                        using (var m = new Matrix())
+                        {
+                            m.Translate(0, i);
+                            layer.Transform(m);
+                            g.DrawPath(outlinePen, layer);
+                            g.FillPath(extrudeBrush, layer);
+                        }
+                    }
+                }
+
+                // 3. Viền chính sắc nét quanh mặt chữ
+                using (var mainOutlinePen = new Pen(LogoOutline, 5f) { LineJoin = LineJoin.Round })
+                {
+                    g.DrawPath(mainOutlinePen, path);
+                }
+
+                // 4. Tô mặt chữ Gradient dọc vừa khít chiều cao thực tế của chữ
+                RectangleF gradRect = new RectangleF(bounds.X, bounds.Y - 1, bounds.Width, bounds.Height + 2);
+                using (var gradBrush = new LinearGradientBrush(gradRect, LogoTop, LogoBottom, LinearGradientMode.Vertical))
+                {
+                    g.FillPath(gradBrush, path);
+                }
+
+                // 5. Đường bắt sáng mảnh dọc mép trên mặt chữ
+                GraphicsState clipState = g.Save();
+                g.SetClip(path);
+                using (var innerHighlight = (GraphicsPath)path.Clone())
+                using (var m = new Matrix())
+                using (var highlightPen = new Pen(Color.FromArgb(120, 255, 255, 255), 1.4f) { LineJoin = LineJoin.Round })
+                {
+                    m.Translate(0, 1.5f);
+                    innerHighlight.Transform(m);
+                    g.DrawPath(highlightPen, innerHighlight);
+                }
+                g.Restore(clipState);
+            }
+
+            g.Restore(state);
+        }
+
+        private static StringFormat CreateStringFormat(ContentAlignment align)
+        {
+            var sf = new StringFormat(StringFormatFlags.NoClip | StringFormatFlags.NoWrap);
+
+            if (align == ContentAlignment.TopCenter || align == ContentAlignment.MiddleCenter || align == ContentAlignment.BottomCenter)
+                sf.Alignment = StringAlignment.Center;
+            else if (align == ContentAlignment.TopRight || align == ContentAlignment.MiddleRight || align == ContentAlignment.BottomRight)
+                sf.Alignment = StringAlignment.Far;
+            else
+                sf.Alignment = StringAlignment.Near;
+
+            if (align == ContentAlignment.MiddleLeft || align == ContentAlignment.MiddleCenter || align == ContentAlignment.MiddleRight)
+                sf.LineAlignment = StringAlignment.Center;
+            else if (align == ContentAlignment.BottomLeft || align == ContentAlignment.BottomCenter || align == ContentAlignment.BottomRight)
+                sf.LineAlignment = StringAlignment.Far;
+            else
+                sf.LineAlignment = StringAlignment.Near;
+
+            return sf;
         }
 
         private void lblBattleshiptxt_Click(object sender, EventArgs e) { }

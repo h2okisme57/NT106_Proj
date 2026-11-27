@@ -51,6 +51,7 @@ public class frmLeaderboard : Form
         Controls.Add(btnRefresh);
         Controls.Add(lblStatus);
         Controls.Add(listView);
+        Theme.ApplyRetroFont(this);
 
         // Mở form là tự tải luôn
         Shown += async (s, e) => await LoadAsync();

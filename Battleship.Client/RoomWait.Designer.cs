@@ -37,6 +37,7 @@
             lblLogo = new Label();
             btnReady = new Button();
             btnOut = new Button();
+            btnKick = new Button();
             SuspendLayout();
             // 
             // lblPlayer1txt
@@ -132,11 +133,23 @@
             btnOut.UseVisualStyleBackColor = false;
             btnOut.Click += btnOut_Click;
             // 
+            // btnKick
+            // 
+            btnKick.BackColor = Color.IndianRed;
+            btnKick.FlatStyle = FlatStyle.Flat;
+            btnKick.Location = new Point(399, 336);
+            btnKick.Name = "btnKick";
+            btnKick.Size = new Size(111, 34);
+            btnKick.TabIndex = 10;
+            btnKick.Text = "KICK";
+            btnKick.UseVisualStyleBackColor = false;
+            // 
             // RoomWait
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.AppWorkspace;
+            Controls.Add(btnKick);
             Controls.Add(btnOut);
             Controls.Add(btnReady);
             Controls.Add(lblLogo);
@@ -163,5 +176,6 @@
         private Label lblLogo;
         private Button btnReady;
         private Button btnOut;
+        private Button btnKick;
     }
 }

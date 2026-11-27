@@ -1,4 +1,4 @@
-﻿using Battleship.Shared;
+using Battleship.Shared;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -12,12 +12,46 @@ namespace Battleship.Client
         public joinRoom()
         {
             InitializeComponent();
+            this.DoubleBuffered = true;
+            Applytheme();
+            Theme.ApplyRetroFont(this);
+        }
+
+        private void Applytheme()
+        {
+            this.BackColor = Theme.BgBottom;
+
+            lblJoinlgo.AutoSize = false;
+            lblJoinlgo.Size = new Size(this.Width - 24, 34);
+            lblJoinlgo.Location = new Point(12, 12);
+            lblJoinlgo.TextAlign = ContentAlignment.MiddleCenter;
+            lblJoinlgo.Font = FontManager.GetFont(13.5f, FontStyle.Bold);
+            lblJoinlgo.ForeColor = Theme.Gold;
+            lblJoinlgo.BackColor = Color.Transparent;
+
+            pnlJoin.Location = new Point(14, 52);
+            pnlJoin.Size = new Size(this.Width - 28, 384);
+            pnlJoin.BackColor = Theme.InputBg;
+
+            btnBack.Location = new Point(14, 444);
+            btnBack.Size = new Size(this.Width - 28, 34);
+            Theme.StyleButton(btnBack, Theme.Slate, Theme.SlateDark, 9.5f);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Theme.DrawCrtBackground(e.Graphics, this.ClientRectangle);
+            using (var pen = new Pen(Theme.PanelBorder, 2))
+            {
+                e.Graphics.DrawRectangle(pen, pnlJoin.Left - 1, pnlJoin.Top - 1, pnlJoin.Width + 1, pnlJoin.Height + 1);
+            }
         }
 
         private async void joinRoom_Load(object sender, EventArgs e)
         {
             pnlJoin.AutoScroll = true;
-            pnlJoin.BackColor = Color.FromArgb(120, 0, 0, 0);
+            pnlJoin.BackColor = Theme.InputBg;
             pnlJoin.FlowDirection = FlowDirection.TopDown;
             pnlJoin.WrapContents = false;
 
@@ -154,47 +188,55 @@ namespace Battleship.Client
                 return;
             }
 
+            int cardWidth = pnlJoin.Width - SystemInformation.VerticalScrollBarWidth - 16;
             Panel card = new Panel();
-            card.Size = new Size(pnlJoin.Width - 10, 60);
-            card.BackColor = Color.FromArgb(80, 255, 255, 255);
-            card.Margin = new Padding(5, 5, 5, 5);
+            card.Size = new Size(cardWidth, 60);
+            card.BackColor = Theme.PanelBg;
+            card.Margin = new Padding(6, 5, 6, 5);
+            card.Paint += (s, ev) =>
+            {
+                using (var pen = new Pen(Theme.PanelBorder, 1))
+                {
+                    ev.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+                }
+            };
+
+            Font hostFont = FontManager.GetFont(8.5f, FontStyle.Bold);
+            int maxHostWidth = card.Width - 154;
 
             Label lblHost = new Label();
-            lblHost.Text = $"Phòng của {hostName} (ID: {roomId})";
-            lblHost.ForeColor = Color.White;
-            lblHost.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+            lblHost.Text = FormatHostRoomText(hostName ?? string.Empty, roomId ?? string.Empty, hostFont, maxHostWidth);
+            lblHost.ForeColor = Theme.Text;
+            lblHost.Font = hostFont;
             lblHost.Location = new Point(10, 18);
-            lblHost.AutoSize = true;
+            lblHost.AutoSize = false;
+            lblHost.Size = new Size(maxHostWidth, 24);
+            lblHost.TextAlign = ContentAlignment.MiddleLeft;
             lblHost.BackColor = Color.Transparent;
 
             Label lblCount = new Label();
             lblCount.Text = $"{currentPlayers}/2";
-            lblCount.ForeColor = (currentPlayers == 1 && state == RoomState.Waiting) ? Color.LimeGreen : Color.Red;
-            lblCount.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            lblCount.Location = new Point(card.Width - 140, 18);
+            lblCount.ForeColor = (currentPlayers == 1 && state == RoomState.Waiting) ? Theme.Green : Theme.Red;
+            lblCount.Font = FontManager.GetFont(9f, FontStyle.Bold);
+            lblCount.Location = new Point(card.Width - 142, 19);
             lblCount.AutoSize = true;
             lblCount.BackColor = Color.Transparent;
 
             Button btnJoin = new Button();
             btnJoin.Text = "Join";
-            btnJoin.Size = new Size(80, 35);
-            btnJoin.Location = new Point(card.Width - 90, 12);
-            btnJoin.BackColor = ColorTranslator.FromHtml("#8B1E2D");
-            btnJoin.ForeColor = Color.White;
-            btnJoin.FlatStyle = FlatStyle.Flat;
-            btnJoin.FlatAppearance.BorderSize = 0;
-            btnJoin.Cursor = Cursors.Hand;
-            btnJoin.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            btnJoin.Size = new Size(84, 34);
+            btnJoin.Location = new Point(card.Width - 94, 13);
 
             // Kiểm tra trạng thái phòng (đầy người hoặc đang chơi)
             if (currentPlayers >= 2 || state != RoomState.Waiting)
             {
                 btnJoin.Enabled = false;
-                btnJoin.BackColor = Color.Gray;
                 btnJoin.Text = state == RoomState.Playing ? "Playing" : "Full";
+                Theme.StyleButton(btnJoin, Theme.Slate, Theme.SlateDark, 8f);
             }
             else
             {
+                Theme.StyleButton(btnJoin, Theme.Cyan, Theme.CyanDark, 8.5f);
                 btnJoin.Click += async (s, ev) =>
                 {
                     btnJoin.Enabled = false;
@@ -216,6 +258,25 @@ namespace Battleship.Client
             card.Controls.Add(btnJoin);
 
             pnlJoin.Controls.Add(card);
+        }
+
+        private static string FormatHostRoomText(string hostName, string roomId, Font font, int maxWidth)
+        {
+            string prefix = "Phòng của ";
+            string suffix = $" (ID: {roomId})";
+            string full = prefix + hostName + suffix;
+
+            if (TextRenderer.MeasureText(full, font).Width <= maxWidth)
+                return full;
+
+            for (int len = hostName.Length - 1; len >= 0; len--)
+            {
+                string candidate = prefix + hostName.Substring(0, len) + "..." + suffix;
+                if (TextRenderer.MeasureText(candidate, font).Width <= maxWidth)
+                    return candidate;
+            }
+
+            return prefix + suffix.TrimStart();
         }
 
 

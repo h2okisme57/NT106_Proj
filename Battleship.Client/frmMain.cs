@@ -14,27 +14,47 @@ namespace Battleship.Client
         }
 
         // Chuyển qua màn hình trận đấu Battleship
-        public static void SwitchToGameScreen()
+        public static void SwitchToGameScreen(MatchFoundDto? matchInfo = null)
         {
-            // 1. TỐI ƯU KÍCH THƯỚC: Dùng ClientSize thay vì Size
-            // Thiết lập vùng làm việc thực tế bên trong Form đủ rộng (1100x800) để không bị đè/cắt xén control
             frmMain mainForm = Application.OpenForms["frmMain"] as frmMain;
-            if (mainForm != null)
+            if (mainForm == null) return;
+
+            mainForm.ClientSize = new Size(978, 742);
+            mainForm.StartPosition = FormStartPosition.CenterScreen;
+            mainForm.Location = new Point(
+                (Screen.PrimaryScreen.WorkingArea.Width - mainForm.Width) / 2,
+                (Screen.PrimaryScreen.WorkingArea.Height - mainForm.Height) / 2
+            );
+
+            // matchInfo == null -> Chế độ Test cục bộ (IsOnlineMode = false)
+            // matchInfo != null -> Chế độ Online thật từ RoomWait (IsOnlineMode = true)
+            mainForm.Controls.Clear();
+
+            var gameScreen = new BattleshipDesign(matchInfo);
+            gameScreen.Dock = DockStyle.Fill;
+            mainForm.Controls.Add(gameScreen);
+            gameScreen.BringToFront();
+        }
+
+        // Quay trở về màn hình Lobby sau khi kết thúc trận đấu
+        public static void SwitchToLobby()
+        {
+            frmMain mainForm = Application.OpenForms["frmMain"] as frmMain;
+            if (mainForm == null) return;
+
+            mainForm.Controls.Clear();
+            mainForm.ClientSize = new Size(978, 644);
+            if (Screen.PrimaryScreen != null)
             {
-                mainForm.ClientSize = new Size(978, 742);
-                mainForm.StartPosition = FormStartPosition.CenterScreen;
+                mainForm.Location = new Point(
+                    (Screen.PrimaryScreen.WorkingArea.Width - mainForm.Width) / 2,
+                    (Screen.PrimaryScreen.WorkingArea.Height - mainForm.Height) / 2
+                );
             }
 
-            // 2. GIẢ LẬP DỮ LIỆU TRẬN ĐẤU (MatchFoundDto) ĐỂ TEST MÀN HÌNH
-            MatchFoundDto dummyMatch = new MatchFoundDto
-            {
-                RoomId = "TEST_ROOM_01",
-                OpponentName = "Kẻ Hủy Diệt (Bot)", // Tên đối thủ giả lập
-                IsHost = true
-            };
-
-            // 3. Mở màn hình BattleshipDesign với dữ liệu test
-            SwitchView(new BattleshipDesign());
+            mainForm.pnlContainer.Dock = DockStyle.Fill;
+            mainForm.Controls.Add(mainForm.pnlContainer);
+            SwitchView(new Lobby());
         }
 
         // Chuyển đổi màn hình hiển thị trong pnlContainer sang UserControl khác
@@ -53,6 +73,9 @@ namespace Battleship.Client
         // Khi Form Main vừa mở lên, tự động hiển thị màn hình chơi game
         private void frmMain_Load(object sender, EventArgs e)
         {
+            this.AutoScaleMode = AutoScaleMode.None;
+            this.ClientSize = new Size(978, 644);
+            Theme.ApplyRetroFont(this);
             SwitchView(new Lobby());
 
         }
