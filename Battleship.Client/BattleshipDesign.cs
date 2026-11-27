@@ -13,7 +13,7 @@ namespace Battleship.Client
     {
         PlacingShips,    // Giai đoạn tự xếp 5 tàu
         Waiting,         // Đã xếp xong, chờ đối thủ xếp tàu
-        MyTurn,          // Lượt của mình (5 viên đạn, đếm ngược)
+        MyTurn,          // Lượt của mình (bắn 1 phát, đếm ngược)
         EnemyTurn,       // Lượt của đối thủ
         GameOver         // Kết thúc trận đấu
     }
@@ -191,7 +191,7 @@ namespace Battleship.Client
                 }
                 else if (CurrentState == GameTurnState.EnemyTurn)
                 {
-                    AddChatMessage("Test", "Hết thời gian EnemyTurn -> quay lại MyTurn (nạp 5 phát bắn).");
+                    AddChatMessage("Test", "Hết thời gian EnemyTurn -> quay lại MyTurn.");
                     SetTurnState(GameTurnState.MyTurn);
                 }
             }
@@ -287,12 +287,12 @@ namespace Battleship.Client
                 UpdateShotsUI(remainingShots);
             };
 
-            // 5. Khi bắn hết 5 phát ở chế độ Test -> nạp lại 5 phát tiếp theo
+            // 5. Chế độ Test: bắn xong một phát thì nạp lại để bắn tiếp
             EnemyBoard.OnTurnEnded += () =>
             {
                 if (!IsOnlineMode && !_isGameOverHandled && CurrentState == GameTurnState.MyTurn)
                 {
-                    AddChatMessage("Test", "Đã bắn hết 5 phát, nạp lại 5 phát tiếp theo.");
+                    AddChatMessage("Test", "Đã bắn xong, nạp lại phát tiếp theo.");
                     SetTurnState(GameTurnState.MyTurn);
                 }
             };
@@ -348,7 +348,7 @@ namespace Battleship.Client
 
                     EnemyBoard.IsPlacementPhase = false;
                     EnemyBoard.StartTurn(TurnDurationSeconds);
-                    UpdateShotsUI(5);
+                    UpdateShotsUI(BoardGame.ShotsPerTurn);
                     UpdateAllShipsConditionUI(EnemyBoard.PlayerShips, isEnemy: true);
                     break;
 
@@ -627,14 +627,9 @@ namespace Battleship.Client
                     PlayerProfile.Username,
                     StringComparison.OrdinalIgnoreCase);
 
-                if (nextIsMyTurn && CurrentState != GameTurnState.MyTurn)
-                {
-                    SetTurnState(GameTurnState.MyTurn);
-                }
-                else if (!nextIsMyTurn && EnemyBoard.RemainingShots <= 0 && CurrentState != GameTurnState.EnemyTurn)
-                {
-                    SetTurnState(GameTurnState.EnemyTurn);
-                }
+                // Server đặt lại 30 giây sau mỗi phát (kể cả khi trúng và được bắn tiếp),
+                // nên Client cũng nạp lại phát bắn và đếm lại từ đầu.
+                SetTurnState(nextIsMyTurn ? GameTurnState.MyTurn : GameTurnState.EnemyTurn);
             }
         }
 
@@ -711,6 +706,7 @@ namespace Battleship.Client
 
             for (int i = 0; i < orderedPics.Count; i++)
             {
+                orderedPics[i].Visible = i < BoardGame.ShotsPerTurn;
                 string status = (i < remainingShots) ? "Shoots" : "Used";
                 UpdateCellStatus(orderedPics[i], status);
             }
