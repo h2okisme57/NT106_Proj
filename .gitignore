@@ -481,3 +481,7 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 /battleship.db
+
+# file tam cua SQLite
+battleship.db-shm
+battleship.db-wal

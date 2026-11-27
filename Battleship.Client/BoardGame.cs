@@ -112,6 +112,8 @@ namespace Battleship.Client
         public bool IsPlacementPhase { get; set; } = true;
         public bool IsHorizontal { get; set; } = true;
         public bool IsMyTurn { get; private set; } = false;
+        // Luật: bắn từng phát. Trúng thì được bắn tiếp, hụt thì đổi lượt (Server quyết định).
+        public const int ShotsPerTurn = 1;
         public int RemainingShots { get; private set; } = 0;
 
         public ShipInfo SelectedShip { get; set; }
@@ -163,7 +165,7 @@ namespace Battleship.Client
         {
             IsMyTurn = true;
             IsWaitingShotResult = false;
-            RemainingShots = 5;
+            RemainingShots = ShotsPerTurn;
             secondsRemaining = durationSeconds > 0 ? durationSeconds : 30;
 
             OnRemainingShotsChanged?.Invoke(RemainingShots);
