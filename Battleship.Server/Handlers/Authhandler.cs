@@ -33,6 +33,25 @@ namespace Battleship.Server.Handlers
         // Nếu không thì "sai tên" trả lời nhanh hơn "sai mật khẩu", kẻ xấu nhìn thời gian là biết tên nào có thật.
         private static readonly string DummyHash = PasswordHelper.HashPassword("mat-khau-gia-de-chong-do-thoi-gian");
 
+        // Giới hạn số lần BCrypt chạy cùng lúc (mục 4.6). BCrypt rất tốn CPU, nếu hàng trăm người đăng nhập
+        // cùng lúc mà chạy hết một lượt thì các luồng tranh nhau, tất cả đều chậm và quá hạn chờ của Client.
+        // Cho chạy tối đa bằng số lõi CPU, người đến sau xếp hàng chờ (chờ bất đồng bộ nên không chiếm luồng).
+        private static readonly SemaphoreSlim _bcryptGate = new SemaphoreSlim(Environment.ProcessorCount);
+
+        private static async Task<bool> VerifyPasswordLimitedAsync(string plain, string hash)
+        {
+            await _bcryptGate.WaitAsync();
+            try
+            {
+                // Task.Run để việc tính toán nặng không chạy ngay trong vòng đọc của phiên người chơi
+                return await Task.Run(() => PasswordHelper.VerifyPassword(plain, hash));
+            }
+            finally
+            {
+                _bcryptGate.Release();
+            }
+        }
+
         public async Task HandleAsync(ClientSession session, Packet packet)
         {
             if (packet.Type == PacketType.LoginRequest)
@@ -123,7 +142,7 @@ namespace Battleship.Server.Handlers
             }
 
             // Luôn chạy BCrypt dù có user hay không (chống đo thời gian)
-            bool passwordOk = PasswordHelper.VerifyPassword(req.Password, user?.Password ?? DummyHash);
+            bool passwordOk = await VerifyPasswordLimitedAsync(req.Password, user?.Password ?? DummyHash);
 
             if (user == null || !passwordOk)
             {
