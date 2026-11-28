@@ -113,8 +113,13 @@ namespace Battleship.Client
                 try
                 {
                     var chatMsg = packet.DeserializePayload<ChatMessageDto>();
-                    if (chatMsg != null)
+                    if (chatMsg != null && !string.IsNullOrEmpty(chatMsg.Content))
                     {
+                        if (chatMsg.Content.StartsWith("[MATCH_CHAT:", StringComparison.Ordinal) ||
+                            chatMsg.Content.StartsWith("[SYS_", StringComparison.Ordinal))
+                        {
+                            return;
+                        }
                         AddChatMessage(chatMsg.Sender, chatMsg.Content);
                     }
                 }

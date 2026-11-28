@@ -6,7 +6,7 @@ using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using Timer = System.Windows.Forms.Timer;
-
+using System.Reflection;
 namespace Battleship.Client
 {
     public enum GameTurnState
@@ -21,9 +21,16 @@ namespace Battleship.Client
     public partial class BattleshipDesign : UserControl
     {
         Color Outline = Theme.PanelBorder;
-        private static readonly Color PlacementPurple = Color.FromArgb(168, 85, 247);
-        private Color _playerNameBorderColor = Theme.Cyan;
-        private Color _enemyNameBorderColor = Theme.Cyan;
+        private static readonly Color PanelSurface = Color.FromArgb(22, 56, 94);       // Màu panel2 & panel9 (nổi lên trên)
+        private static readonly Color PanelRecessed = Color.FromArgb(14, 38, 66);      // Màu panel1 ở giữa (bị đè xuống)
+        private static readonly Color BoardBackdrop = Color.FromArgb(10, 28, 50);      // Nền tableLayoutPanel1
+        private static readonly Color SoftBorder = Color.FromArgb(88, 138, 178);
+        private static readonly Color EdgeHighlight = Color.FromArgb(132, 192, 232);   // Viền sáng ở mép đè lên panel1
+        private static readonly Color SoftCyan = Color.FromArgb(74, 158, 206);
+        private static readonly Color SoftGold = Color.FromArgb(212, 172, 74);
+        private static readonly Color PlacementPurple = Color.FromArgb(148, 102, 204);
+        private Color _playerNameBorderColor = SoftCyan;
+        private Color _enemyNameBorderColor = SoftCyan;
         private BoardGame playerBoard;
         public BoardGame EnemyBoard;
         private MatchFoundDto _currentMatch;
@@ -42,14 +49,33 @@ namespace Battleship.Client
         private Timer _turnTimer;
         private Timer _connectionCheckTimer;
         private int _secondsLeft;
+        private DateTime _turnStartTime;        // Thời điểm bắt đầu đếm ngược (để tránh drift)
+        private int _turnDurationForDisplay;    // Tổng giây đếm ngược của lượt hiện tại
 
         private TextBox boxChat;
         private bool _Chat = false;
+        private Timer _chatAutoHideTimer;
 
         public BattleshipDesign(MatchFoundDto matchInfo = null)
         {
             InitializeComponent();
-            this.DoubleBuffered = true;
+            EnableDoubleBuffer(this);
+            EnableDoubleBuffer(tableLayoutPanel1);
+            EnableDoubleBuffer(panel1);
+            EnableDoubleBuffer(panel2);
+            EnableDoubleBuffer(panel9);
+
+            // Gắn sự kiện vẽ viền nổi cho panel2 (trái) và panel9 (phải)
+            panel2.Paint -= panel2_Paint;
+            panel2.Paint += panel2_Paint;
+            panel9.Paint -= panel9_Paint;
+            panel9.Paint += panel9_Paint;
+
+            // Vẽ lại mượt khi đổi kích thước cửa sổ
+            tableLayoutPanel1.SizeChanged += (s, e) => tableLayoutPanel1.Invalidate();
+            panel1.SizeChanged += (s, e) => panel1.Invalidate();
+            panel2.SizeChanged += (s, e) => panel2.Invalidate();
+            panel9.SizeChanged += (s, e) => panel9.Invalidate();
             Applytheme();
             Theme.ApplyRetroFont(this);
 
@@ -78,18 +104,25 @@ namespace Battleship.Client
 
         }
 
+        private static void EnableDoubleBuffer(Control ctrl)
+        {
+            typeof(Control).GetProperty("DoubleBuffered", BindingFlags.NonPublic | BindingFlags.Instance)
+                           ?.SetValue(ctrl, true, null);
+        }
+
+
         private void Applytheme()
         {
             this.BackColor = Theme.BgBottom;
-            tableLayoutPanel1.BackColor = Color.Transparent;
+            tableLayoutPanel1.BackColor = BoardBackdrop;
             tableLayoutPanel2.BackColor = Color.Transparent;
 
-            panel1.BackColor = Theme.PanelBg;
-            panel2.BackColor = Theme.PanelBg;
-            panel9.BackColor = Theme.PanelBg;
-            pnlPlayerName.BackColor = Theme.PanelBg;
+            panel1.BackColor = PanelRecessed; // Tối hơn để có cảm giác nằm dưới panel2 và panel9
+            panel2.BackColor = PanelSurface;
+            panel9.BackColor = PanelSurface;
+            pnlPlayerName.BackColor = PanelSurface;
             pnlPlayerName.Padding = new Padding(4);
-            pnlEnemyName.BackColor = Theme.PanelBg;
+            pnlEnemyName.BackColor = PanelSurface;
             pnlEnemyName.Padding = new Padding(4);
 
             Label[] shipLabels = { label1, label2, label3, label4, label6, label5, label7, label8, label9, label10 };
@@ -201,6 +234,14 @@ namespace Battleship.Client
                 return;
             }
 
+            // TODO (Server/Shared): Hiện Battleship.Shared và Battleship.Server chưa có PacketType riêng
+            // để yêu cầu/nhận timer giai đoạn đặt tàu (Server chỉ mới chạy StartOrResetTurnTimer sau khi cả 2 PlayerReady).
+            // Khi Server bổ sung (ví dụ PlacementTimerRequest/PlacementTimerStart), bỏ comment đoạn dưới để đồng bộ từ Server:
+            // if (NetworkManager.Instance != null && NetworkManager.Instance.IsConnected)
+            // {
+            //     _ = NetworkManager.Instance.SendAsync(Packet.Create(PacketType.PlacementTimerRequest, new { RoomId = _currentMatch.RoomId }));
+            // }
+
             SetTurnState(GameTurnState.PlacingShips);
         }
 
@@ -243,8 +284,11 @@ namespace Battleship.Client
 
         private void StartTurnTimer(int durationSeconds)
         {
-            _secondsLeft = durationSeconds > 0 ? durationSeconds : 30;
-            if (TxtTimer != null) TxtTimer.Text = $"{_secondsLeft}s";
+            // Dùng DateTime để tránh drift: ghi nhớ thời điểm bắt đầu và tổng giây
+            _turnDurationForDisplay = durationSeconds > 0 ? durationSeconds : 30;
+            _turnStartTime = DateTime.UtcNow;
+            _secondsLeft = _turnDurationForDisplay;
+            if (TxtTimer != null) TxtTimer.Text = $"{_secondsLeft}";
 
             if (_turnTimer == null) return;
             _turnTimer.Stop();
@@ -259,30 +303,25 @@ namespace Battleship.Client
 
         private void TurnTimer_Tick(object sender, EventArgs e)
         {
-            _secondsLeft--;
-            if (TxtTimer != null) TxtTimer.Text = $"{Math.Max(0, _secondsLeft)}s";
+            // Tính thời gian còn lại dựa trên DateTime thực để không bị drift
+            int elapsed = (int)(DateTime.UtcNow - _turnStartTime).TotalSeconds;
+            int remaining = Math.Max(0, _turnDurationForDisplay - elapsed);
+            if (TxtTimer != null) TxtTimer.Text = $"{remaining}";
 
-            if (_secondsLeft <= 0)
+            if (remaining <= 0)
             {
                 _turnTimer.Stop();
 
-                if (IsOnlineMode)
-                {
-                    // Online: chỉ hiển thị 0s và chờ Server gửi TurnChange (Reason=Timeout), không tự đổi lượt.
-                    return;
-                }
-
-                // Chế độ Test: luân chuyển MyTurn <-> EnemyTurn khi hết giờ để test timer
+                // Cả Online lẫn Test: chuyển lượt ngay tại client khi hết giờ
                 if (CurrentState == GameTurnState.MyTurn)
                 {
-                    AddChatMessage("Test", "Hết thời gian MyTurn -> chuyển sang đếm giờ EnemyTurn.");
-                    SetTurnState(GameTurnState.EnemyTurn);
+                    SetTurnState(GameTurnState.EnemyTurn, TurnDurationSeconds);
                 }
                 else if (CurrentState == GameTurnState.EnemyTurn)
                 {
-                    AddChatMessage("Test", "Hết thời gian EnemyTurn -> quay lại MyTurn.");
-                    SetTurnState(GameTurnState.MyTurn);
+                    SetTurnState(GameTurnState.MyTurn, TurnDurationSeconds);
                 }
+                // PlacingShips: giữ trạng thái, Server sẽ gửi TurnChange khi cả hai xong
             }
         }
 
@@ -408,7 +447,9 @@ namespace Battleship.Client
 
                     playerBoard.IsPlacementPhase = true;
                     if (lblShots != null) lblShots.Text = "Place Ships";
-                    StopTurnTimer($"{TurnDurationSeconds}s");
+                    // Đếm ngược thời gian đặt tàu trên Client để đồng hồ không bị đứng yên
+                    // (Server hiện chưa gửi gói tin đếm giờ riêng cho giai đoạn PlacingShips)
+                    StartTurnTimer(displaySeconds);
                     _yellowShotsCount = 0;
                     UpdateShotsUI(_yellowShotsCount);
                     UpdateAllShipsConditionUI(playerBoard.PlayerShips, isEnemy: false);
@@ -416,8 +457,8 @@ namespace Battleship.Client
                     break;
 
                 case GameTurnState.Waiting:
-                    _playerNameBorderColor = Theme.Cyan;
-                    _enemyNameBorderColor = Theme.Cyan;
+                    _playerNameBorderColor = SoftCyan;
+                    _enemyNameBorderColor = SoftCyan;
 
                     playerBoard.IsPlacementPhase = false;
                     if (lblShots != null) lblShots.Text = "Waiting...";
@@ -427,8 +468,8 @@ namespace Battleship.Client
                     break;
 
                 case GameTurnState.MyTurn:
-                    _playerNameBorderColor = Theme.Gold;
-                    _enemyNameBorderColor = Theme.Cyan;
+                    _playerNameBorderColor = SoftGold;
+                    _enemyNameBorderColor = SoftCyan;
 
                     if (lblShots != null) lblShots.Text = "Your turn";
                     StartTurnTimer(displaySeconds);
@@ -446,8 +487,8 @@ namespace Battleship.Client
                 case GameTurnState.EnemyTurn:
                     if (EnemyBoard.IsMyTurn) EnemyBoard.EndTurn();
 
-                    _playerNameBorderColor = Theme.Cyan;
-                    _enemyNameBorderColor = Theme.Gold;
+                    _playerNameBorderColor = SoftCyan;
+                    _enemyNameBorderColor = SoftGold;
 
                     if (lblShots != null) lblShots.Text = "Enemy's turn";
                     StartTurnTimer(displaySeconds);
@@ -456,13 +497,13 @@ namespace Battleship.Client
                     break;
 
                 case GameTurnState.GameOver:
-                    _playerNameBorderColor = Theme.Cyan;
-                    _enemyNameBorderColor = Theme.Cyan;
+                    _playerNameBorderColor = SoftCyan;
+                    _enemyNameBorderColor = SoftCyan;
 
                     playerBoard.IsPlacementPhase = false;
                     if (EnemyBoard.IsMyTurn) EnemyBoard.EndTurn();
                     if (lblShots != null) lblShots.Text = "End of game";
-                    StopTurnTimer("0s");
+                    StopTurnTimer("0");
                     _yellowShotsCount = 0;
                     UpdateShotsUI(_yellowShotsCount);
                     break;
@@ -548,6 +589,13 @@ namespace Battleship.Client
                             if (_isGameOverHandled) return;
 
                             TurnDurationSeconds = turnChanged.TimeLimitSeconds > 0 ? turnChanged.TimeLimitSeconds : 30;
+
+                            // Hỗ trợ sẵn nếu Server gửi TurnChange với Reason = "Placement" để đồng bộ timer đặt tàu
+                            if (string.Equals(turnChanged.Reason, "Placement", StringComparison.OrdinalIgnoreCase))
+                            {
+                                SetTurnState(GameTurnState.PlacingShips, TurnDurationSeconds);
+                                return;
+                            }
 
                             bool isMyTurn = string.Equals(
                                 turnChanged.CurrentTurnUsername,
@@ -636,7 +684,15 @@ namespace Battleship.Client
                                 break;
                             }
 
-                            AddChatMessage(chatMsg.Sender, chatMsg.Content);
+                            // Chỉ nhận tin nhắn thuộc đúng trận đấu này (bỏ qua tin nhắn từ Lobby / phòng khác)
+                            string matchPrefix = $"[MATCH_CHAT:{_currentMatch?.RoomId}]:";
+                            if (!chatMsg.Content.StartsWith(matchPrefix, StringComparison.Ordinal))
+                            {
+                                break;
+                            }
+
+                            string actualContent = chatMsg.Content.Substring(matchPrefix.Length);
+                            AddChatMessage(chatMsg.Sender, actualContent);
                         }
                         catch (Exception ex)
                         {
@@ -937,6 +993,12 @@ namespace Battleship.Client
                 chatPanel.Controls.Add(msgLabel);
                 chatPanel.Visible = true;
                 chatPanel.ScrollControlIntoView(msgLabel);
+
+                if (!_Chat && _chatAutoHideTimer != null)
+                {
+                    _chatAutoHideTimer.Stop();
+                    _chatAutoHideTimer.Start();
+                }
             }));
         }
 
@@ -1016,8 +1078,7 @@ namespace Battleship.Client
                         break;
 
                     default:
-                        DrawSocketPip(g, outerRect, Theme.InputBg, Color.FromArgb(140, Theme.InputBorder), Color.Transparent);
-                        break;
+                        return null;
                 }
             }
             return bmp;
@@ -1075,6 +1136,12 @@ namespace Battleship.Client
             if (size <= 0) size = 24;
 
             string normalized = (status ?? string.Empty).ToLowerInvariant();
+            if (string.IsNullOrEmpty(normalized) || normalized == "none")
+            {
+                targetCell.Image = null;
+                return;
+            }
+
             targetCell.Image = CreateStatusPipImage(normalized, size);
         }
 
@@ -1137,14 +1204,135 @@ namespace Battleship.Client
             }
         }
 
-        private void pnlOutlinePaint(Control ctrl, PaintEventArgs e, Color? customBorder = null)
+        private void pnlOutlinePaint(Control ctrl, PaintEventArgs e, Color? customBorder = null, bool soft = false)
         {
+            if (soft)
+            {
+                using (Pen borderPen = new Pen(customBorder ?? SoftBorder, 2))
+                {
+                    e.Graphics.DrawRectangle(borderPen, 1, 1, ctrl.Width - 3, ctrl.Height - 3);
+                }
+                return;
+            }
+
             using (Pen shadowPen = new Pen(Theme.Shadow, 1))
-            using (Pen borderPen = new Pen(customBorder ?? Outline, 3))
+            using (Pen borderPen = new Pen(customBorder ?? Outline, 2))
             {
                 e.Graphics.DrawRectangle(shadowPen, 0, 0, ctrl.Width - 1, ctrl.Height - 1);
-                e.Graphics.DrawRectangle(borderPen, 2, 2, ctrl.Width - 5, ctrl.Height - 5);
+                e.Graphics.DrawRectangle(borderPen, 1, 1, ctrl.Width - 3, ctrl.Height - 3);
             }
+        }
+
+
+
+
+// Gắn vào sự kiện Paint của Form (hoặc Panel cha chứa các card)
+        private void ParentContainer_Paint(object sender, PaintEventArgs e)
+        {
+            DrawSoftShadow(e.Graphics, panel2, cornerRadius: 8, blurSize: 16, offsetX: 0, offsetY: 6, maxAlpha: 110);
+            DrawSoftShadow(e.Graphics, panel9, cornerRadius: 8, blurSize: 16, offsetX: 0, offsetY: 6, maxAlpha: 110);
+        }
+
+        private void DrawSoftShadow(
+            Graphics g,
+            Control targetCard,
+            int cornerRadius = 8,
+            int blurSize = 16,
+            int offsetX = 0,
+            int offsetY = 6,
+            int maxAlpha = 110)
+        {
+            if (!targetCard.Visible || targetCard.Width < 4 || targetCard.Height < 4) return;
+
+            GraphicsState state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            RectangleF shadowRect = new RectangleF(
+                targetCard.Left + offsetX - blurSize,
+                targetCard.Top + offsetY - blurSize,
+                targetCard.Width + blurSize * 2f,
+                targetCard.Height + blurSize * 2f);
+
+            using (GraphicsPath path = CreateRoundedRectPath(shadowRect, cornerRadius + blurSize))
+            using (PathGradientBrush pgb = new PathGradientBrush(path))
+            {
+                float fx = Math.Max(0f, Math.Min(0.95f, (shadowRect.Width - blurSize * 2.2f) / shadowRect.Width));
+                float fy = Math.Max(0f, Math.Min(0.95f, (shadowRect.Height - blurSize * 2.2f) / shadowRect.Height));
+                pgb.FocusScales = new PointF(fx, fy);
+
+                pgb.InterpolationColors = new ColorBlend
+                {
+                    Colors = new[]
+                    {
+                Color.FromArgb(0, 0, 8, 20),
+                Color.FromArgb((int)(maxAlpha * 0.22f), 0, 8, 20),
+                Color.FromArgb((int)(maxAlpha * 0.60f), 0, 8, 20),
+                Color.FromArgb(maxAlpha, 0, 8, 20)
+            },
+                    Positions = new[] { 0f, 0.35f, 0.72f, 1f }
+                };
+
+                g.FillPath(pgb, path);
+            }
+
+            g.Restore(state);
+        }
+
+        private static GraphicsPath CreateRoundedRectPath(RectangleF rect, float radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            if (radius <= 0.5f)
+            {
+                path.AddRectangle(rect);
+                return path;
+            }
+
+            float d = Math.Min(radius * 2f, Math.Min(rect.Width, rect.Height));
+            path.AddArc(rect.X, rect.Y, d, d, 180f, 90f);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270f, 90f);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0f, 90f);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90f, 90f);
+            path.CloseFigure();
+            return path;
+        }
+
+        private Panel CreateLayeredBackdrop(Control card, int offsetX = 6, int offsetY = 6, Color? layerColor = null)
+        {
+            if (card?.Parent == null) return null;
+
+            Control parent = card.Parent;
+            Panel backdrop = new Panel
+            {
+                Size = card.Size,
+                Location = new Point(card.Left + offsetX, card.Top + offsetY),
+                BackColor = layerColor ?? Color.FromArgb(8, 18, 34), // Màu lớp nền nằm dưới
+                Anchor = card.Anchor,
+                Visible = card.Visible,
+                Enabled = false
+            };
+
+            // Đặt backdrop nằm ngay phía sau card để card đè lên trên
+            int cardIndex = parent.Controls.GetChildIndex(card);
+            parent.Controls.Add(backdrop);
+            parent.Controls.SetChildIndex(backdrop, cardIndex + 1);
+
+            // Tự động đồng bộ vị trí, kích thước, ẩn/hiện khi card thay đổi
+            card.LocationChanged += (s, e) => backdrop.Location = new Point(card.Left + offsetX, card.Top + offsetY);
+            card.SizeChanged += (s, e) => backdrop.Size = card.Size;
+            card.VisibleChanged += (s, e) => backdrop.Visible = card.Visible;
+            card.Disposed += (s, e) => backdrop.Dispose();
+
+            return backdrop;
+        }
+
+        private static Color ShiftColor(Color c, int delta)
+        {
+            return Color.FromArgb(
+                c.A,
+                Math.Max(0, Math.Min(255, c.R + delta)),
+                Math.Max(0, Math.Min(255, c.G + delta)),
+                Math.Max(0, Math.Min(255, c.B + delta)));
         }
 
         private void pnlOutlinePaintUP(TableLayoutPanel tbl, TableLayoutCellPaintEventArgs e)
@@ -1163,11 +1351,24 @@ namespace Battleship.Client
             }
         }
 
-        private void panel2_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(panel2, e);
-        private void panel9_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(panel9, e);
+
 
         public void CreateTransparentChatBox()
         {
+            if (_chatAutoHideTimer == null)
+            {
+                _chatAutoHideTimer = new Timer();
+                _chatAutoHideTimer.Interval = 5000;
+                _chatAutoHideTimer.Tick += (s, ev) =>
+                {
+                    _chatAutoHideTimer.Stop();
+                    if (!_Chat && chatPanel != null && !chatPanel.IsDisposed)
+                    {
+                        chatPanel.Visible = false;
+                    }
+                };
+            }
+
             if (chatPanel != null)
             {
                 chatPanel.AutoScroll = true;
@@ -1218,7 +1419,7 @@ namespace Battleship.Client
                     var chatMsg = new ChatMessageDto
                     {
                         Sender = PlayerProfile.Username,
-                        Content = messageText
+                        Content = $"[MATCH_CHAT:{_currentMatch?.RoomId}]:{messageText}"
                     };
 
                     var packet = Packet.Create(PacketType.ChatMessage, chatMsg);
@@ -1236,9 +1437,9 @@ namespace Battleship.Client
         private void tableLayoutPanel5_CellPaint(object sender, TableLayoutCellPaintEventArgs e) => pnlOutlinePaintleft(tableLayoutPanel5, e);
         private void tableLayoutPanel6_CellPaint(object sender, TableLayoutCellPaintEventArgs e) => pnlOutlinePaintUP(tableLayoutPanel6, e);
         private void tableLayoutPanel3_CellPaint(object sender, TableLayoutCellPaintEventArgs e) => pnlOutlinePaintleft(tableLayoutPanel3, e);
-        private void pnlPlayerName_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(pnlPlayerName, e, _playerNameBorderColor);
-        private void pnlEnemyName_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(pnlEnemyName, e, _enemyNameBorderColor);
-        private void pnlEnemyName_Paint_1(object sender, PaintEventArgs e) => pnlOutlinePaint(pnlEnemyName, e, _enemyNameBorderColor);
+        private void pnlPlayerName_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(pnlPlayerName, e, _playerNameBorderColor, soft: true);
+        private void pnlEnemyName_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(pnlEnemyName, e, _enemyNameBorderColor, soft: true);
+        private void pnlEnemyName_Paint_1(object sender, PaintEventArgs e) => pnlOutlinePaint(pnlEnemyName, e, _enemyNameBorderColor, soft: true);
 
         private void btnChat_Click(object sender, EventArgs e)
         {
@@ -1246,6 +1447,7 @@ namespace Battleship.Client
 
             if (_Chat)
             {
+                _chatAutoHideTimer?.Stop();
                 btnChat.Text = "Cancel";
                 if (chatPanel != null) chatPanel.Visible = true;
                 if (boxChat != null)
@@ -1256,6 +1458,7 @@ namespace Battleship.Client
             }
             else
             {
+                _chatAutoHideTimer?.Stop();
                 btnChat.Text = "Chat";
                 if (chatPanel != null) chatPanel.Visible = false;
                 if (boxChat != null)
@@ -1293,6 +1496,9 @@ namespace Battleship.Client
             _connectionCheckTimer?.Stop();
             _connectionCheckTimer?.Dispose();
 
+            _chatAutoHideTimer?.Stop();
+            _chatAutoHideTimer?.Dispose();
+
             if (IsOnlineMode && NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.OnPacketReceived -= NetworkManager_OnPacketReceived;
@@ -1309,8 +1515,129 @@ namespace Battleship.Client
             }
         }
 
+
+        // Viền nổi cho panel2 (nằm bên trái -> mép đè hướng sang phải)
+        private void panel2_Paint(object sender, PaintEventArgs e)
+        {
+            DrawElevatedSidePanelBorder(e.Graphics, panel2.ClientRectangle, overlapOnRight: true);
+        }
+
+        // Viền nổi cho panel9 (nằm bên phải -> mép đè hướng sang trái)
+        private void panel9_Paint(object sender, PaintEventArgs e)
+        {
+            DrawElevatedSidePanelBorder(e.Graphics, panel9.ClientRectangle, overlapOnRight: false);
+        }
+
+        private void DrawElevatedSidePanelBorder(Graphics g, Rectangle rect, bool overlapOnRight)
+        {
+            if (rect.Width <= 4 || rect.Height <= 4) return;
+
+            // Tắt AntiAlias khi vẽ đường thẳng 1px để viền sắc nét tuyệt đối, không bị lem pixel
+            g.SmoothingMode = SmoothingMode.None;
+
+            int r = rect.Width - 1;
+            int b = rect.Height - 1;
+
+            // 1. Khung viền chính 1px
+            using (Pen basePen = new Pen(SoftBorder, 1))
+            {
+                g.DrawRectangle(basePen, 0, 0, r, b);
+            }
+
+            // 2. Đường bắt sáng mảnh ở cạnh trên tạo cảm giác tấm thẻ nổi
+            using (Pen topLightPen = new Pen(Color.FromArgb(65, 190, 232, 255), 1))
+            {
+                g.DrawLine(topLightPen, 1, 1, r - 1, 1);
+            }
+
+            // 3. Nhấn mạnh mép đè lên panel1 (cạnh phải với panel2, cạnh trái với panel9)
+            using (Pen overlapEdgePen = new Pen(EdgeHighlight, 1))
+            using (Pen innerRimPen = new Pen(Color.FromArgb(45, 190, 232, 255), 1))
+            using (Pen bottomRimPen = new Pen(Color.FromArgb(140, 6, 18, 34), 1))
+            {
+                if (overlapOnRight)
+                {
+                    // panel2 bên trái: cạnh phải sáng sắc nét đè sang panel1
+                    g.DrawLine(overlapEdgePen, r, 0, r, b);
+                    g.DrawLine(innerRimPen, r - 1, 1, r - 1, b - 1);
+                }
+                else
+                {
+                    // panel9 bên phải: cạnh trái sáng sắc nét đè sang panel1
+                    g.DrawLine(overlapEdgePen, 0, 0, 0, b);
+                    g.DrawLine(innerRimPen, 1, 1, 1, b - 1);
+                }
+
+                // Cạnh dưới hơi sẫm để tạo độ dày tấm panel
+                g.DrawLine(bottomRimPen, 1, b - 1, r - 1, b - 1);
+            }
+        }
+
+        private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.None;
+
+            // Bóng đổ trên nền tableLayoutPanel1 (hiện rõ ở khoảng Margin xung quanh panel2 và panel9)
+            // panel2 ở bên trái -> bóng lệch phải & xuống dưới
+            if (panel2 != null && panel2.Visible)
+            {
+                DrawLayeredDropEdge(g, panel2.Bounds, offsetX: 5, offsetY: 5);
+            }
+
+            // panel9 ở bên phải -> bóng lệch trái & xuống dưới
+            if (panel9 != null && panel9.Visible)
+            {
+                DrawLayeredDropEdge(g, panel9.Bounds, offsetX: -5, offsetY: 5);
+            }
+        }
+
+        private static void DrawLayeredDropEdge(Graphics g, Rectangle bounds, int offsetX, int offsetY)
+        {
+            // Xếp 3 lớp bóng phẳng giảm dần độ đậm -> mềm mắt nhưng cạnh vẫn vuông sắc nét
+            int[] alphas = { 115, 65, 30 };
+            for (int i = 0; i < alphas.Length; i++)
+            {
+                int step = i + 1;
+                int dx = offsetX > 0 ? Math.Min(offsetX, step * 2) : Math.Max(offsetX, -step * 2);
+                int dy = Math.Min(offsetY, step * 2);
+
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(alphas[i], 3, 10, 22)))
+                {
+                    g.FillRectangle(b, bounds.X + dx, bounds.Y + dy, bounds.Width, bounds.Height);
+                }
+            }
+        }
+
+        private void panel1_Paint(object sender, PaintEventArgs e)
+        {
+            if (panel1.Width <= 20 || panel1.Height <= 0) return;
+
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.None;
+
+            // Bóng đè mượt từ panel2 (mép trái) và panel9 (mép phải) hắt thẳng vào panel1
+            int shadowWidth = 14;
+            int maxAlpha = 165;
+
+            for (int i = 0; i < shadowWidth; i++)
+            {
+                // Suy giảm bậc 2 (đậm sát mép panel2/panel9, tan mượt về phía giữa panel1)
+                float t = 1f - (i / (float)shadowWidth);
+                int alpha = (int)(maxAlpha * t * t);
+                if (alpha <= 0) continue;
+
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(alpha, 2, 8, 18)))
+                {
+                    // Bóng từ panel2 (trái) đè sang
+                    g.FillRectangle(brush, i, 0, 1, panel1.Height);
+
+                    // Bóng từ panel9 (phải) đè sang
+                    g.FillRectangle(brush, panel1.Width - 1 - i, 0, 1, panel1.Height);
+                }
+            }
+        }
         //----------------------------- CÁC SỰ KIỆN TRỐNG BÊN DƯỚI GIỮ NGUYÊN -------------------------------------------------------
-        private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e) { }
         private void label4_Click(object sender, EventArgs e) { }
         private void panel8_Paint(object sender, PaintEventArgs e) { }
         private void tablePlayerConditionCarrier_Paint(object sender, PaintEventArgs e) { }
@@ -1319,7 +1646,7 @@ namespace Battleship.Client
         private void tablePlayerConditionCruiser_Paint(object sender, PaintEventArgs e) { }
         private void tablePlayerConditionDestroyer_Paint(object sender, PaintEventArgs e) { }
         private void TxtTimer_TextChanged(object sender, EventArgs e) { }
-        private void panel1_Paint(object sender, PaintEventArgs e) => pnlOutlinePaint(panel1, e);
+
         private void TableShots_Paint(object sender, PaintEventArgs e) { }
         private void lblShots_Click(object sender, EventArgs e) { }
         private void tableEnemyConditionCarrier_Paint(object sender, PaintEventArgs e) { }

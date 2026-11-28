@@ -17,6 +17,8 @@ public class frmLeaderboard : Form
         Text = "Bảng xếp hạng";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(560, 420);
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
 
         btnRefresh = new Button
         {

@@ -10,6 +10,8 @@ namespace Battleship.Client
         public frmMain()
         {
             InitializeComponent();
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
             Load += frmMain_Load;
         }
 
