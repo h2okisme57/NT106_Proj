@@ -162,7 +162,6 @@
             panel9.Name = "panel9";
             panel9.Size = new Size(340, 204);
             panel9.TabIndex = 2;
-            panel9.Paint += panel9_Paint;
             // 
             // btnChat
             // 
@@ -320,7 +319,6 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(339, 204);
             panel2.TabIndex = 1;
-            panel2.Paint += panel2_Paint;
             // 
             // label6
             // 
@@ -482,9 +480,9 @@
             // 
             lblShots.Font = new Font("Segoe UI", 16F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblShots.ForeColor = Color.Gold;
-            lblShots.Location = new Point(0, 127);
+            lblShots.Location = new Point(3, 127);
             lblShots.Name = "lblShots";
-            lblShots.Size = new Size(278, 67);
+            lblShots.Size = new Size(275, 67);
             lblShots.TabIndex = 12;
             lblShots.Text = "PLACE";
             lblShots.TextAlign = ContentAlignment.MiddleCenter;

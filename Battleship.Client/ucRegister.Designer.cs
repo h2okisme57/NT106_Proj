@@ -35,6 +35,7 @@
             boxPasswordTxt = new TextBox();
             lblLoginLogoTxt = new Label();
             boxConfirmPassword = new TextBox();
+            btnOut = new Button();
             SuspendLayout();
             // 
             // lblErrorTxt
@@ -125,11 +126,24 @@
             boxConfirmPassword.TabIndex = 14;
             boxConfirmPassword.TextChanged += boxConfirmPassword_TextChanged;
             // 
+            // btnOut
+            // 
+            btnOut.BackColor = Color.IndianRed;
+            btnOut.FlatStyle = FlatStyle.Flat;
+            btnOut.Location = new Point(442, 22);
+            btnOut.Name = "btnOut";
+            btnOut.Size = new Size(81, 34);
+            btnOut.TabIndex = 15;
+            btnOut.Text = "X";
+            btnOut.UseVisualStyleBackColor = false;
+            btnOut.Click += btnOut_Click;
+            // 
             // ucRegister
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
+            Controls.Add(btnOut);
             Controls.Add(boxConfirmPassword);
             Controls.Add(lblErrorTxt);
             Controls.Add(btnRegister);
@@ -152,5 +166,6 @@
         private TextBox boxPasswordTxt;
         private Label lblLoginLogoTxt;
         private TextBox boxConfirmPassword;
+        private Button btnOut;
     }
 }

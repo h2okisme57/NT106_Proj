@@ -1,4 +1,4 @@
-﻿using Battleship.Shared;
+using Battleship.Shared;
 using System;
 using System.Drawing;
 using System.Text.Json;
@@ -29,14 +29,84 @@ namespace Battleship.Client
         public RoomWait()
         {
             InitializeComponent();
+            this.DoubleBuffered = true;
+            Applytheme();
+            Theme.ApplyRetroFont(this);
             btnKick.Visible = false;
 
             // Đặt mặc định Player 2 là "---" thay vì "Waiting..." trong Designer
             lblPlayer2Conddition.Text = "---";
-            lblPlayer2Conddition.ForeColor = Color.White;
+            lblPlayer2Conddition.ForeColor = Theme.Muted;
 
             this.Load += RoomWait_Load;
             SubscribeNetwork();
+        }
+
+        private void Applytheme()
+        {
+            this.BackColor = Theme.BgBottom;
+
+            lblLogo.AutoSize = false;
+            lblLogo.Location = new Point(22, 16);
+            lblLogo.Size = new Size(394, 34);
+            lblLogo.TextAlign = ContentAlignment.MiddleLeft;
+            lblLogo.Font = FontManager.GetFont(13f, FontStyle.Bold);
+            lblLogo.ForeColor = Theme.Gold;
+            lblLogo.BackColor = Color.Transparent;
+
+            lblPlayer1txt.Location = new Point(44, 92);
+            lblPlayer1txt.Font = FontManager.GetFont(9f, FontStyle.Bold);
+            lblPlayer1txt.ForeColor = Theme.Muted;
+            lblPlayer1txt.BackColor = Color.Transparent;
+
+            lblPlayer1Username.AutoSize = false;
+            lblPlayer1Username.Location = new Point(44, 124);
+            lblPlayer1Username.Size = new Size(190, 32);
+            lblPlayer1Username.Font = FontManager.GetFont(10.5f, FontStyle.Bold);
+            lblPlayer1Username.ForeColor = Theme.Gold;
+            lblPlayer1Username.BackColor = Color.Transparent;
+
+            lblPlayer1Condition.Location = new Point(44, 170);
+            lblPlayer1Condition.Font = FontManager.GetFont(9.5f, FontStyle.Bold);
+            lblPlayer1Condition.ForeColor = Theme.Red;
+            lblPlayer1Condition.BackColor = Color.Transparent;
+
+            lblPlayer2Txt.Location = new Point(293, 92);
+            lblPlayer2Txt.Font = FontManager.GetFont(9f, FontStyle.Bold);
+            lblPlayer2Txt.ForeColor = Theme.Muted;
+            lblPlayer2Txt.BackColor = Color.Transparent;
+
+            lblPlayer2Username.AutoSize = false;
+            lblPlayer2Username.Location = new Point(293, 124);
+            lblPlayer2Username.Size = new Size(190, 32);
+            lblPlayer2Username.Font = FontManager.GetFont(10.5f, FontStyle.Bold);
+            lblPlayer2Username.ForeColor = Theme.Cyan;
+            lblPlayer2Username.BackColor = Color.Transparent;
+
+            lblPlayer2Conddition.Location = new Point(293, 170);
+            lblPlayer2Conddition.Font = FontManager.GetFont(9.5f, FontStyle.Bold);
+            lblPlayer2Conddition.ForeColor = Theme.Muted;
+            lblPlayer2Conddition.BackColor = Color.Transparent;
+
+            btnOut.Location = new Point(429, 16);
+            btnOut.Size = new Size(74, 34);
+            Theme.StyleButton(btnOut, Theme.Red, Theme.RedDark, 9f);
+
+            btnReady.Location = new Point((this.Width - 170) / 2, 266);
+            btnReady.Size = new Size(170, 50);
+            Theme.StyleButton(btnReady, Theme.Cyan, Theme.CyanDark, 11f);
+
+            btnKick.Location = new Point(392, 326);
+            btnKick.Size = new Size(110, 36);
+            Theme.StyleButton(btnKick, Theme.Red, Theme.RedDark, 9f);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Theme.DrawCrtBackground(e.Graphics, this.ClientRectangle);
+            Theme.DrawCard(e.Graphics, new Rectangle(26, 74, 224, 152));
+            Theme.DrawCard(e.Graphics, new Rectangle(275, 74, 224, 152));
         }
 
         private void SubscribeNetwork()
@@ -68,7 +138,7 @@ namespace Battleship.Client
             lblPlayer1Username.Text = _hostName;
             lblPlayer2Username.Text = "Đang chờ người chơi...";
             lblPlayer2Conddition.Text = "---";
-            lblPlayer2Conddition.ForeColor = Color.White;
+            lblPlayer2Conddition.ForeColor = Theme.Muted;
             btnKick.Visible = false;
         }
 
@@ -83,7 +153,7 @@ namespace Battleship.Client
             lblPlayer1Username.Text = PlayerProfile.Username ?? "Player 1";
             lblPlayer2Username.Text = "Đang tìm đối thủ...";
             lblPlayer2Conddition.Text = "---";
-            lblPlayer2Conddition.ForeColor = Color.White;
+            lblPlayer2Conddition.ForeColor = Theme.Muted;
             btnKick.Visible = false;
         }
 
@@ -287,22 +357,21 @@ namespace Battleship.Client
                 }
                 else
                 {
-                    lblPlayer2Username.Text = "Đang chờ người chơi...";
+                    lblPlayer2Username.Text = "Đang chờ...";
                     _isReady = false;
                     _hostReady = false;
                     _guestReady = false;
                     RefreshReadyLabels();
                     lblPlayer2Conddition.Text = "---";
-                    lblPlayer2Conddition.ForeColor = Color.White;
+                    lblPlayer2Conddition.ForeColor = Theme.Muted;
                 }
 
                 // Chỉ chủ phòng (tạo bằng CreateRoom) mới thấy nút KICK khi đã có Guest
                 btnKick.Visible = _isHost && !string.IsNullOrEmpty(_guestName);
 
-                if (room.State == RoomState.Playing)
-                {
-                    EnterMatchScreen();
-                }
+                // Không tự vào trận chỉ dựa vào room.State == RoomState.Playing vì Server
+                // chuyển phòng sang PlacementPhase (map thành RoomState.Playing) ngay khi Guest vừa join.
+                // Chỉ vào trận khi cả 2 bấm READY hoặc nhận PacketType.GameStart từ Server.
             });
         }
 
@@ -338,21 +407,22 @@ namespace Battleship.Client
         private void RefreshReadyLabels()
         {
             lblPlayer1Condition.Text = _hostReady ? "Ready" : "Waiting...";
-            lblPlayer1Condition.ForeColor = _hostReady ? Color.LimeGreen : Color.Red;
+            lblPlayer1Condition.ForeColor = _hostReady ? Theme.Green : Theme.Red;
 
             if (!string.IsNullOrEmpty(_guestName))
             {
                 lblPlayer2Conddition.Text = _guestReady ? "Ready" : "Waiting...";
-                lblPlayer2Conddition.ForeColor = _guestReady ? Color.LimeGreen : Color.Red;
+                lblPlayer2Conddition.ForeColor = _guestReady ? Theme.Green : Theme.Red;
             }
             else
             {
                 lblPlayer2Conddition.Text = "---";
-                lblPlayer2Conddition.ForeColor = Color.White;
+                lblPlayer2Conddition.ForeColor = Theme.Muted;
             }
 
             _isReady = _isHostSlot ? _hostReady : _guestReady;
             btnReady.Text = _isReady ? "CANCEL" : "READY";
+            btnReady.BackColor = _isReady ? Theme.Slate : Theme.Cyan;
         }
 
         // =========================================================

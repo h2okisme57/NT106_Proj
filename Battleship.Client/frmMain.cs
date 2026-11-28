@@ -10,6 +10,8 @@ namespace Battleship.Client
         public frmMain()
         {
             InitializeComponent();
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
             Load += frmMain_Load;
         }
 
@@ -36,6 +38,27 @@ namespace Battleship.Client
             gameScreen.BringToFront();
         }
 
+        // Quay trở về màn hình Lobby sau khi kết thúc trận đấu
+        public static void SwitchToLobby()
+        {
+            frmMain mainForm = Application.OpenForms["frmMain"] as frmMain;
+            if (mainForm == null) return;
+
+            mainForm.Controls.Clear();
+            mainForm.ClientSize = new Size(978, 644);
+            if (Screen.PrimaryScreen != null)
+            {
+                mainForm.Location = new Point(
+                    (Screen.PrimaryScreen.WorkingArea.Width - mainForm.Width) / 2,
+                    (Screen.PrimaryScreen.WorkingArea.Height - mainForm.Height) / 2
+                );
+            }
+
+            mainForm.pnlContainer.Dock = DockStyle.Fill;
+            mainForm.Controls.Add(mainForm.pnlContainer);
+            SwitchView(new Lobby());
+        }
+
         // Chuyển đổi màn hình hiển thị trong pnlContainer sang UserControl khác
         public static void SwitchView(UserControl uc)
         {
@@ -52,6 +75,9 @@ namespace Battleship.Client
         // Khi Form Main vừa mở lên, tự động hiển thị màn hình chơi game
         private void frmMain_Load(object sender, EventArgs e)
         {
+            this.AutoScaleMode = AutoScaleMode.None;
+            this.ClientSize = new Size(978, 644);
+            Theme.ApplyRetroFont(this);
             SwitchView(new Lobby());
 
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
@@ -22,33 +22,86 @@ namespace Battleship.Client
         public ucRegister()
         {
             InitializeComponent();
+            this.DoubleBuffered = true;
             AddEmailBox();
+            Applytheme();
+            Theme.ApplyRetroFont(this);
             this.Load += ucRegister_Load;
+        }
+
+        private void Applytheme()
+        {
+            this.BackColor = Theme.BgBottom;
+            this.BorderStyle = BorderStyle.None;
+
+            lblLoginLogoTxt.AutoSize = false;
+            lblLoginLogoTxt.Size = new Size(340, 42);
+            lblLoginLogoTxt.Location = new Point((this.Width - 340) / 2, 22);
+            lblLoginLogoTxt.TextAlign = ContentAlignment.MiddleCenter;
+            lblLoginLogoTxt.Font = FontManager.GetFont(15.5f, FontStyle.Bold);
+            lblLoginLogoTxt.ForeColor = Theme.Gold;
+            lblLoginLogoTxt.BackColor = Color.Transparent;
+
+            StyleRegisterInput(boxUsernameTxt, new Point(95, 92), 355);
+            StyleRegisterInput(boxEmailTxt, new Point(95, 140), 355);
+            StyleRegisterInput(boxPasswordTxt, new Point(95, 188), 355);
+            StyleRegisterInput(boxConfirmPassword, new Point(95, 236), 355);
+
+            llblLogin.Font = FontManager.GetFont(8.5f, FontStyle.Regular);
+            llblLogin.BackColor = Color.Transparent;
+            llblLogin.LinkColor = Theme.Cyan;
+            llblLogin.ActiveLinkColor = Color.White;
+            llblLogin.VisitedLinkColor = Theme.Cyan;
+            llblLogin.Location = new Point(286, 280);
+
+            btnRegister.Size = new Size(184, 46);
+            btnRegister.Location = new Point((this.Width - 184) / 2, 316);
+            Theme.StyleButton(btnRegister, Theme.Cyan, Theme.CyanDark, 11f);
+
+            btnOut.Size = new Size(42, 34);
+            btnOut.Location = new Point(this.Width - 56, 14);
+            Theme.StyleButton(btnOut, Theme.Red, Theme.RedDark, 9.5f);
+
+            lblErrorTxt.BackColor = Color.Transparent;
+            lblErrorTxt.Font = FontManager.GetFont(8.5f, FontStyle.Regular);
+            lblErrorTxt.ForeColor = Theme.Red;
+            lblErrorTxt.Location = new Point(45, 396);
+            lblErrorTxt.Size = new Size(this.Width - 90, 34);
+            lblErrorTxt.TextAlign = ContentAlignment.MiddleCenter;
+        }
+
+        private void StyleRegisterInput(TextBox tb, Point slotLocation, int width)
+        {
+            Theme.StyleTextBox(tb, 10f);
+            tb.Location = new Point(slotLocation.X + 10, slotLocation.Y + 8);
+            tb.Size = new Size(width - 20, 22);
+            tb.Enter += (s, e) => this.Invalidate();
+            tb.Leave += (s, e) => this.Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Theme.DrawCrtBackground(e.Graphics, this.ClientRectangle);
+            Theme.DrawCard(e.Graphics, new Rectangle(58, 72, this.Width - 116, 312));
+            Theme.DrawInputSlot(e.Graphics, boxUsernameTxt);
+            Theme.DrawInputSlot(e.Graphics, boxEmailTxt);
+            Theme.DrawInputSlot(e.Graphics, boxPasswordTxt);
+            Theme.DrawInputSlot(e.Graphics, boxConfirmPassword);
         }
 
         private void AddEmailBox()
         {
             boxEmailTxt = new TextBox();
             boxEmailTxt.Name = "boxEmailTxt";
-            boxEmailTxt.BackColor = Color.White;
-            boxEmailTxt.BorderStyle = BorderStyle.FixedSingle;
-            boxEmailTxt.ForeColor = Color.Gray;
-            boxEmailTxt.Font = boxUsernameTxt.Font;
-            boxEmailTxt.Size = boxUsernameTxt.Size;
             boxEmailTxt.Text = EmailPlaceholder;
-
-            // Dồn các ô lên một chút để có chỗ chèn ô Email giữa Tên đăng nhập và Mật khẩu
-            boxUsernameTxt.Location = new Point(107, 100);
-            boxEmailTxt.Location = new Point(107, 145);
-            boxPasswordTxt.Location = new Point(107, 190);
-            boxConfirmPassword.Location = new Point(107, 235);
 
             boxEmailTxt.Enter += (s, e) =>
             {
                 if (boxEmailTxt.Text == EmailPlaceholder)
                 {
                     boxEmailTxt.Text = "";
-                    boxEmailTxt.ForeColor = Color.Black;
+                    boxEmailTxt.ForeColor = Theme.Text;
                 }
             };
             boxEmailTxt.Leave += (s, e) =>
@@ -56,7 +109,7 @@ namespace Battleship.Client
                 if (string.IsNullOrWhiteSpace(boxEmailTxt.Text))
                 {
                     boxEmailTxt.Text = EmailPlaceholder;
-                    boxEmailTxt.ForeColor = Color.Gray;
+                    boxEmailTxt.ForeColor = Theme.Muted;
                 }
             };
 
@@ -73,15 +126,15 @@ namespace Battleship.Client
 
             // CÀI ĐẶT PLACEHOLDER BAN ĐẦU
             boxUsernameTxt.Text = "Tên đăng nhập";
-            boxUsernameTxt.ForeColor = Color.Gray;
+            boxUsernameTxt.ForeColor = Theme.Muted;
 
             boxPasswordTxt.PasswordChar = '\0';
             boxPasswordTxt.Text = "Mật khẩu";
-            boxPasswordTxt.ForeColor = Color.Gray;
+            boxPasswordTxt.ForeColor = Theme.Muted;
 
             boxConfirmPassword.PasswordChar = '\0';
             boxConfirmPassword.Text = "Xác nhận mật khẩu";
-            boxConfirmPassword.ForeColor = Color.Gray;
+            boxConfirmPassword.ForeColor = Theme.Muted;
 
             // Móc nối các sự kiện Enter/Leave
             boxUsernameTxt.Enter += boxUsernameTxt_Enter;
@@ -131,7 +184,7 @@ namespace Battleship.Client
             if (boxUsernameTxt.Text == "Tên đăng nhập")
             {
                 boxUsernameTxt.Text = "";
-                boxUsernameTxt.ForeColor = Color.Black;
+                boxUsernameTxt.ForeColor = Theme.Text;
             }
         }
 
@@ -140,7 +193,7 @@ namespace Battleship.Client
             if (string.IsNullOrWhiteSpace(boxUsernameTxt.Text))
             {
                 boxUsernameTxt.Text = "Tên đăng nhập";
-                boxUsernameTxt.ForeColor = Color.Gray;
+                boxUsernameTxt.ForeColor = Theme.Muted;
             }
         }
 
@@ -150,7 +203,7 @@ namespace Battleship.Client
             if (boxPasswordTxt.Text == "Mật khẩu")
             {
                 boxPasswordTxt.Text = "";
-                boxPasswordTxt.ForeColor = Color.Black;
+                boxPasswordTxt.ForeColor = Theme.Text;
                 boxPasswordTxt.PasswordChar = '●';
             }
         }
@@ -161,7 +214,7 @@ namespace Battleship.Client
             {
                 boxPasswordTxt.PasswordChar = '\0';
                 boxPasswordTxt.Text = "Mật khẩu";
-                boxPasswordTxt.ForeColor = Color.Gray;
+                boxPasswordTxt.ForeColor = Theme.Muted;
             }
         }
 
@@ -171,7 +224,7 @@ namespace Battleship.Client
             if (boxConfirmPassword.Text == "Xác nhận mật khẩu")
             {
                 boxConfirmPassword.Text = "";
-                boxConfirmPassword.ForeColor = Color.Black;
+                boxConfirmPassword.ForeColor = Theme.Text;
                 boxConfirmPassword.PasswordChar = '●';
             }
         }
@@ -182,7 +235,7 @@ namespace Battleship.Client
             {
                 boxConfirmPassword.PasswordChar = '\0';
                 boxConfirmPassword.Text = "Xác nhận mật khẩu";
-                boxConfirmPassword.ForeColor = Color.Gray;
+                boxConfirmPassword.ForeColor = Theme.Muted;
             }
         }
 
@@ -200,19 +253,19 @@ namespace Battleship.Client
                 string.IsNullOrWhiteSpace(confirm) || confirm == "Xác nhận mật khẩu" ||
                 string.IsNullOrWhiteSpace(email) || email == EmailPlaceholder)
             {
-                lblErrorTxt.ForeColor = Color.Red;
+                lblErrorTxt.ForeColor = Theme.Red;
                 lblErrorTxt.Text = "Vui lòng nhập đầy đủ thông tin!";
                 return;
             }
 
             if (pass != confirm)
             {
-                lblErrorTxt.ForeColor = Color.Red;
+                lblErrorTxt.ForeColor = Theme.Red;
                 lblErrorTxt.Text = "Mật khẩu xác nhận không khớp!";
                 return;
             }
 
-            lblErrorTxt.ForeColor = Color.Blue;
+            lblErrorTxt.ForeColor = Theme.Cyan;
             lblErrorTxt.Text = "Đang kết nối...";
             btnRegister.Enabled = false; // Khóa nút bấm tránh spam
 
@@ -224,7 +277,7 @@ namespace Battleship.Client
                     bool connected = await NetworkManager.Instance.ConnectAsync("127.0.0.1", 8000);
                     if (!connected)
                     {
-                        lblErrorTxt.ForeColor = Color.Red;
+                        lblErrorTxt.ForeColor = Theme.Red;
                         lblErrorTxt.Text = "Không thể kết nối đến máy chủ!";
                         return;
                     }
@@ -249,7 +302,7 @@ namespace Battleship.Client
 
                     if (regRes != null && regRes.Success)
                     {
-                        lblErrorTxt.ForeColor = Color.Green;
+                        lblErrorTxt.ForeColor = Theme.Green;
                         lblErrorTxt.Text = "Đăng ký thành công! Đang chuyển sang Đăng nhập...";
 
                         await Task.Delay(1000); // Dừng một lát để người dùng đọc thông báo
@@ -257,19 +310,19 @@ namespace Battleship.Client
                     }
                     else
                     {
-                        lblErrorTxt.ForeColor = Color.Red;
+                        lblErrorTxt.ForeColor = Theme.Red;
                         lblErrorTxt.Text = regRes?.Message ?? "Tên tài khoản đã tồn tại!";
                     }
                 }
                 else
                 {
-                    lblErrorTxt.ForeColor = Color.Red;
+                    lblErrorTxt.ForeColor = Theme.Red;
                     lblErrorTxt.Text = "Không nhận được phản hồi từ máy chủ!";
                 }
             }
             catch (Exception ex)
             {
-                lblErrorTxt.ForeColor = Color.Red;
+                lblErrorTxt.ForeColor = Theme.Red;
                 lblErrorTxt.Text = "Lỗi kết nối máy chủ!";
             }
             finally
@@ -302,5 +355,19 @@ namespace Battleship.Client
         private void boxPasswordTxt_TextChanged(object sender, EventArgs e) { }
         private void boxConfirmPassword_TextChanged(object sender, EventArgs e) { }
         private void lblErrorTxt_Click(object sender, EventArgs e) { }
+
+        private void btnOut_Click(object sender, EventArgs e)
+        {
+            Form popup = this.FindForm();
+            if (popup != null && popup.Modal)
+            {
+                popup.DialogResult = DialogResult.Cancel;
+                popup.Close();
+                return;
+            }
+
+            this.Parent?.Controls.Remove(this);
+            this.Dispose();
+        }
     }
 }

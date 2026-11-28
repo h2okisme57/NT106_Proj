@@ -17,6 +17,8 @@ public class frmLeaderboard : Form
         Text = "Bảng xếp hạng";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(560, 420);
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
 
         btnRefresh = new Button
         {
@@ -51,6 +53,7 @@ public class frmLeaderboard : Form
         Controls.Add(btnRefresh);
         Controls.Add(lblStatus);
         Controls.Add(listView);
+        Theme.ApplyRetroFont(this);
 
         // Mở form là tự tải luôn
         Shown += async (s, e) => await LoadAsync();

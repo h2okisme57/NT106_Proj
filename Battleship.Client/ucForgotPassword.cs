@@ -25,49 +25,72 @@ namespace Battleship.Client
         public ucForgotPassword()
         {
             k = this.DeviceDpi / 96f;
+            this.DoubleBuffered = true;
             this.AutoScaleMode = AutoScaleMode.None;
-            this.BackColor = Color.White;
+            this.BackColor = Theme.BgBottom;
             this.Size = new Size(S(545), S(505));
 
             var title = new Label
             {
                 Text = "QUÊN MẬT KHẨU",
-                Font = new Font("Segoe UI", 15F),
-                AutoSize = true,
-                Location = new Point(S(150), S(20))
+                Font = FontManager.GetFont(15F, FontStyle.Bold),
+                ForeColor = Theme.Gold,
+                BackColor = Color.Transparent,
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Size = new Size(S(340), S(38)),
+                Location = new Point((this.Width - S(340)) / 2, S(18))
             };
             this.Controls.Add(title);
 
-            AddField("Tên đăng nhập", txtUser, 70, false);
+            AddField("Tên đăng nhập", txtUser, 76, false);
 
             btnSend.Text = "GỬI MÃ XÁC NHẬN";
-            StyleButton(btnSend, Color.FromArgb(0, 139, 227), 172, 132, 200, 40);
+            StyleButton(btnSend, Theme.Cyan, Theme.CyanDark, 172, 140, 200, 40);
             btnSend.Click += btnSend_Click;
             this.Controls.Add(btnSend);
 
-            AddField("Mã xác nhận (6 số, gửi về email)", txtCode, 185, false);
-            AddField("Mật khẩu mới", txtNewPass, 250, true);
-            AddField("Nhập lại mật khẩu mới", txtConfirm, 315, true);
+            AddField("Mã xác nhận (6 số, gửi về email)", txtCode, 190, false);
+            AddField("Mật khẩu mới", txtNewPass, 254, true);
+            AddField("Nhập lại mật khẩu mới", txtConfirm, 318, true);
 
             btnReset.Text = "ĐẶT LẠI MẬT KHẨU";
-            StyleButton(btnReset, Color.FromArgb(236, 45, 51), 172, 382, 200, 44);
+            StyleButton(btnReset, Theme.Red, Theme.RedDark, 172, 386, 200, 44);
             btnReset.Click += btnReset_Click;
             this.Controls.Add(btnReset);
 
             lblMessage.TextAlign = ContentAlignment.MiddleCenter;
-            lblMessage.Location = new Point(S(10), S(434));
-            lblMessage.Size = new Size(S(525), S(34));
+            lblMessage.BackColor = Color.Transparent;
+            lblMessage.Font = FontManager.GetFont(8.5f, FontStyle.Regular);
+            lblMessage.Location = new Point(S(24), S(438));
+            lblMessage.Size = new Size(this.Width - S(48), S(30));
             this.Controls.Add(lblMessage);
 
             llblBack.Text = "Quay lại đăng nhập";
             llblBack.AutoSize = true;
+            llblBack.BackColor = Color.Transparent;
+            llblBack.Font = FontManager.GetFont(8.5f, FontStyle.Regular);
             llblBack.LinkBehavior = LinkBehavior.NeverUnderline;
-            llblBack.LinkColor = Color.FromArgb(69, 149, 102);
-            llblBack.Location = new Point(S(205), S(470));
+            llblBack.LinkColor = Theme.Gold;
+            llblBack.ActiveLinkColor = Color.White;
+            llblBack.VisitedLinkColor = Theme.Gold;
+            llblBack.Location = new Point(S(198), S(472));
             llblBack.LinkClicked += (s, e) => SwitchToLogin();
             this.Controls.Add(llblBack);
 
             SetStep2Enabled(false);
+            Theme.ApplyRetroFont(this);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Theme.DrawCrtBackground(e.Graphics, this.ClientRectangle);
+            Theme.DrawCard(e.Graphics, new Rectangle(S(46), S(62), this.Width - S(92), S(374)));
+            Theme.DrawInputSlot(e.Graphics, txtUser, S(6));
+            Theme.DrawInputSlot(e.Graphics, txtCode, S(6));
+            Theme.DrawInputSlot(e.Graphics, txtNewPass, S(6));
+            Theme.DrawInputSlot(e.Graphics, txtConfirm, S(6));
         }
 
         private int S(int v)
@@ -81,27 +104,27 @@ namespace Battleship.Client
             {
                 Text = caption,
                 AutoSize = true,
-                ForeColor = Color.FromArgb(60, 60, 60),
-                Location = new Point(S(107), S(top))
+                BackColor = Color.Transparent,
+                Font = FontManager.GetFont(8.5f, FontStyle.Regular),
+                ForeColor = Theme.Text,
+                Location = new Point(S(98), S(top))
             };
-            box.Location = new Point(S(107), S(top + 24));
-            box.Width = S(335);
-            box.BorderStyle = BorderStyle.FixedSingle;
+            Theme.StyleTextBox(box, 9.5f);
+            box.ForeColor = Theme.Text;
+            box.Location = new Point(S(108), S(top + 26));
+            box.Width = S(329);
+            box.Enter += (s, e) => this.Invalidate();
+            box.Leave += (s, e) => this.Invalidate();
             if (isPassword) box.PasswordChar = '●';
             this.Controls.Add(lbl);
             this.Controls.Add(box);
         }
 
-        private void StyleButton(Button b, Color color, int x, int y, int w, int h)
+        private void StyleButton(Button b, Color face, Color lip, int x, int y, int w, int h)
         {
             b.Location = new Point(S(x), S(y));
             b.Size = new Size(S(w), S(h));
-            b.BackColor = color;
-            b.ForeColor = Color.White;
-            b.FlatStyle = FlatStyle.Flat;
-            b.FlatAppearance.BorderSize = 0;
-            b.Font = new Font(b.Font, FontStyle.Bold);
-            b.UseVisualStyleBackColor = false;
+            Theme.StyleButton(b, face, lip, 9.5f);
         }
 
         private void SetStep2Enabled(bool enabled)
@@ -110,11 +133,12 @@ namespace Battleship.Client
             txtNewPass.Enabled = enabled;
             txtConfirm.Enabled = enabled;
             btnReset.Enabled = enabled;
+            btnReset.BackColor = enabled ? Theme.Red : Theme.Slate;
         }
 
         private void ShowMessage(string text, bool ok)
         {
-            lblMessage.ForeColor = ok ? Color.Green : Color.Red;
+            lblMessage.ForeColor = ok ? Theme.Green : Theme.Red;
             lblMessage.Text = text;
         }
 
@@ -135,7 +159,7 @@ namespace Battleship.Client
             }
 
             btnSend.Enabled = false;
-            lblMessage.ForeColor = Color.Blue;
+            lblMessage.ForeColor = Theme.Cyan;
             lblMessage.Text = "Đang gửi mã...";
 
             try
@@ -202,7 +226,7 @@ namespace Battleship.Client
             }
 
             btnReset.Enabled = false;
-            lblMessage.ForeColor = Color.Blue;
+            lblMessage.ForeColor = Theme.Cyan;
             lblMessage.Text = "Đang xử lý...";
 
             try

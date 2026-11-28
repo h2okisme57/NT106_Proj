@@ -34,6 +34,7 @@
             llblRegister = new LinkLabel();
             btnLogin = new Button();
             lblErrorTxt = new Label();
+            btnOut = new Button();
             SuspendLayout();
             // 
             // lblLoginLogoTxt
@@ -108,12 +109,25 @@
             lblErrorTxt.TabIndex = 7;
             lblErrorTxt.TextAlign = ContentAlignment.MiddleCenter;
             // 
+            // btnOut
+            // 
+            btnOut.BackColor = Color.IndianRed;
+            btnOut.FlatStyle = FlatStyle.Flat;
+            btnOut.Location = new Point(448, 12);
+            btnOut.Name = "btnOut";
+            btnOut.Size = new Size(81, 34);
+            btnOut.TabIndex = 10;
+            btnOut.Text = "X";
+            btnOut.UseVisualStyleBackColor = false;
+            btnOut.Click += btnOut_Click;
+            // 
             // ucLogin
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             BorderStyle = BorderStyle.FixedSingle;
+            Controls.Add(btnOut);
             Controls.Add(lblErrorTxt);
             Controls.Add(btnLogin);
             Controls.Add(llblRegister);
@@ -135,5 +149,6 @@
         private LinkLabel llblRegister;
         private Button btnLogin;
         private Label lblErrorTxt;
+        private Button btnOut;
     }
 }

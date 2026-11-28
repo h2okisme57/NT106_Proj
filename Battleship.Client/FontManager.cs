@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing.Text;
 using System.Linq;
@@ -15,6 +15,12 @@ namespace Battleship.Client
         private static bool isLoaded = false;
 
         public static Font GetFont(float size, FontStyle style = FontStyle.Regular)
+        {
+            float scaledSize = Math.Max(Theme.MinRetroFontSize, size * Theme.RetroFontScale);
+            return GetFontRaw(scaledSize, style);
+        }
+
+        public static Font GetFontRaw(float size, FontStyle style = FontStyle.Regular)
         {
             if (!isLoaded)
             {
